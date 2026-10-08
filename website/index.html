@@ -584,40 +584,6 @@ section { padding-block: clamp(56px, 8vw, 104px); }
   align-content: start;
   min-width: 0;
 }
-.libs { display: flex; flex-wrap: wrap; gap: 8px; }
-.libs span {
-  font-family: var(--font-data);
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--rule-strong);
-  color: var(--ink-soft);
-}
-.expand { border: 1px solid var(--rule); border-radius: 14px; background: var(--panel); }
-.expand > summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 16px;
-  align-items: center;
-  padding: 18px clamp(18px, 3vw, 28px);
-  cursor: pointer;
-  list-style: none;
-}
-.expand > summary::-webkit-details-marker { display: none; }
-.expand > summary::after {
-  content: "+";
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  font-family: var(--font-data);
-  font-size: 22px;
-  line-height: 1;
-  color: var(--accent-bright);
-  transition: transform 200ms var(--ease-swift);
-}
-.expand[open] > summary::after { transform: rotate(45deg); }
-.expand > summary:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; border-radius: 14px; }
-.expand__title { font-size: 19px; font-weight: 700; color: var(--ink); }
-.expand__body { display: grid; gap: 14px; padding: 0 clamp(18px, 3vw, 28px) 22px; }
 .notes { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .notes li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; color: var(--ink-soft); }
 .notes li::before { content: "·"; color: var(--accent-bright); font-weight: 800; font-size: 20px; line-height: 1; }
@@ -1511,28 +1477,27 @@ main, footer.foot { position: relative; z-index: 1; }
 
   <!-- software design and libraries -->
   <section id="about">
-    <div class="wrap">
-      <details class="expand">
-        <summary>
-          <span class="eyebrow">Software design and libraries</span>
-          <span class="expand__title">Built from first principles</span>
-        </summary>
-        <div class="expand__body">
-          <p class="muted">
-            The photogrammetric models (collinearity, resection, bundle adjustment and orthorectification)
-            are my own implementation from first principles. For the numerical optimiser, dense stereo
-            matching, feature matching and raster and projection handling I use established open-source
-            libraries.
-          </p>
-          <p class="muted">
-            Fiducia is open source too, under the Apache 2.0 licence, so anyone can read the maths, check
-            it and build on it.
-          </p>
-          <div class="libs" aria-label="Open-source libraries">
-            <span>SciPy</span><span>OpenCV</span><span>GDAL</span><span>PROJ</span><span>NumPy</span><span>rasterio</span>
-          </div>
-        </div>
-      </details>
+    <div class="wrap accuracy">
+      <div class="accuracy__copy">
+        <span class="eyebrow">Software design and libraries</span>
+        <h2>Built from first principles.</h2>
+        <p class="lede">
+          The photogrammetric models (collinearity, resection, bundle adjustment and orthorectification)
+          are my own implementation from first principles. Established open-source libraries handle the
+          numerical optimiser, dense stereo matching, feature matching, and raster and projection work.
+          Fiducia is open source too, under the Apache 2.0 licence, so anyone can read the maths, check it
+          and build on it.
+        </p>
+        <dl class="stats">
+          <div class="stat"><dt>numerical optimiser</dt><dd>SciPy</dd></div>
+          <div class="stat"><dt>stereo and feature matching</dt><dd>OpenCV</dd></div>
+          <div class="stat"><dt>raster input and output</dt><dd>GDAL</dd></div>
+          <div class="stat"><dt>coordinate systems</dt><dd>PROJ</dd></div>
+          <div class="stat"><dt>arrays and linear algebra</dt><dd>NumPy</dd></div>
+          <div class="stat"><dt>georeferenced rasters</dt><dd>rasterio</dd></div>
+        </dl>
+        <a class="stats__more" href="https://github.com/josh1234431/Fiducia" target="_blank" rel="noreferrer">Read the source on GitHub →</a>
+      </div>
     </div>
   </section>
 
