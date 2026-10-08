@@ -30,7 +30,7 @@
   --teal-glow: #5fdcc0;
   --teal-bright: #3fc4a8;
   --teal-lit: #35b79e;
-  --teal-core: #1b9c85;
+  --teal-core: #17917f;
   --teal-deep: #147a68;
   --teal-shadow: #0d4a40;
 
@@ -167,8 +167,8 @@
 
   --accent: #147a68;
   --accent-bright: #0f6455;
-  --accent-wash: rgba(27, 156, 133, 0.1);
-  --accent-wash-strong: rgba(27, 156, 133, 0.17);
+  --accent-wash: rgba(23, 145, 127, 0.1);
+  --accent-wash-strong: rgba(23, 145, 127, 0.17);
   --accent-edge: rgba(20, 122, 104, 0.34);
   --accent-ink: #ffffff;
 

@@ -731,7 +731,7 @@ def mosaic_preview(spec: MosaicSpec, max_px: int = 900) -> dict:
 
     # Seam map: which image dominates each pixel, in distinguishable hues.
     palette = np.array(
-        [[27, 156, 133], [217, 119, 62], [92, 126, 214], [201, 84, 132],
+        [[23, 145, 127], [217, 119, 62], [92, 126, 214], [201, 84, 132],
          [140, 172, 70], [120, 108, 196], [214, 168, 58], [70, 160, 170]],
         dtype=np.uint8,
     )
