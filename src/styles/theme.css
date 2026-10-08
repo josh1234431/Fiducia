@@ -1,0 +1,702 @@
+/*
+ * Fiducia design tokens.
+ *
+ * Evolved past the starting brand guide. What was kept: teal as the accent,
+ * a grey-wedge surface so the photograph stays the brightest thing on screen,
+ * and numbers typeset as data rather than as language.
+ *
+ * What changed, and why:
+ *
+ * TYPE IS ROUNDED NOW. Space Mono was doing display work it was never cut for
+ * -- square terminals, uniform widths, and a headline that reads as a readout.
+ * Manrope carries everything proportional now, from a 10px label to the hero,
+ * because it is one geometric family with soft joins that holds up across that
+ * whole range. Inter takes the data role: a neutral grotesque cut for screens,
+ * set with tabular figures wherever it is used so columns still align.
+ *
+ * SURFACES HAVE DEPTH. Flat fills separated by hairlines read as a wireframe.
+ * Each surface now carries a faint top-down gradient and a one-pixel top
+ * highlight, which is how real light falls on a raised panel, and elevation is
+ * carried by shadow instead of by a drawn border. Hairlines survive only where
+ * they encode something -- a table row, a column edge.
+ *
+ * MOTION ANSWERS ACTIONS. Every animation here is a response to something the
+ * operator did or something the engine finished. Nothing fades in on arrival,
+ * nothing slides just because it can.
+ */
+
+:root {
+  /* -- accent ---------------------------------------------------------- */
+  --teal-glow: #5fdcc0;
+  --teal-bright: #3fc4a8;
+  --teal-lit: #35b79e;
+  --teal-core: #1b9c85;
+  --teal-deep: #147a68;
+  --teal-shadow: #0d4a40;
+
+  /* Instruments. Desaturated so teal stays the loudest thing on screen.
+     Defined per theme below — a hue legible on a dark panel is not legible
+     on white, and signal colours have to stay readable in both. */
+
+  --font-body: 'Manrope', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Manrope', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-data: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+
+  /* Type scale, 1.25 from a 13px UI base. */
+  --type-micro: 10.5px;
+  --type-small: 11.5px;
+  --type-base: 13px;
+  --type-mid: 16px;
+  --type-large: 20px;
+  --type-display: 26px;
+
+  /* Optical tracking: tight at display sizes, open at small ones. */
+  --track-display: -0.035em;
+  --track-heading: -0.018em;
+  --track-body: -0.005em;
+  --track-micro: 0.005em;
+  --track-data: 0;
+
+  --step-1: 0.25rem;
+  --step-2: 0.5rem;
+  --step-3: 0.75rem;
+  --step-4: 1rem;
+  --step-5: 1.5rem;
+  --step-6: 2rem;
+  --step-7: 3rem;
+
+  /* Softer geometry. Nothing here is a sharp box any more. */
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 13px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  --rail-width: 220px;
+  --inspector-width: 380px;
+  --titlebar-height: 48px;
+  --datastrip-height: 28px;
+  --jobbar-height: 34px;
+
+  /* Easing. `swift` for ordinary state, `spring` where a small overshoot
+     makes a completion feel like it landed rather than merely finished. */
+  --ease-swift: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --quick: 110ms;
+  --base: 200ms;
+  --slow: 340ms;
+}
+
+/* -- dark: the working surface ---------------------------------------- */
+
+:root,
+:root[data-theme='dark'] {
+  --well: #0e1013;
+  --surface-sunk: #14171a;
+  --surface: #1c2024;
+  --surface-raised: #23282d;
+  --surface-lifted: #2c3238;
+  --field: #121518;
+
+  --ink: #edf0f2;
+  --ink-soft: #b6bec4;
+  --ink-muted: #a0aab0;
+  --ink-faint: #808a91;
+  --ink-inverse: #0e1013;
+
+  --signal-good: #4fbd9a;
+  --signal-warn: #d4a259;
+  --signal-bad: #e3937b;
+  --signal-cool: #8fb0d6;
+
+  --rule: #282e33;
+  --rule-strong: #363d44;
+  --rule-bright: #454d55;
+
+  --accent: var(--teal-lit);
+  --accent-bright: var(--teal-glow);
+  --accent-wash: rgba(53, 183, 158, 0.12);
+  --accent-wash-strong: rgba(53, 183, 158, 0.2);
+  --accent-edge: rgba(53, 183, 158, 0.38);
+  --accent-ink: #04211b;
+
+  /* The light that falls on a raised surface, and the shadow it casts. */
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 42%);
+  --sheen-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0) 55%);
+  --highlight: rgba(255, 255, 255, 0.07);
+
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --elev-2: 0 2px 6px rgba(0, 0, 0, 0.34), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --elev-3: 0 8px 22px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --elev-4: 0 20px 56px rgba(0, 0, 0, 0.52), 0 6px 16px rgba(0, 0, 0, 0.36);
+
+  --glow-accent: 0 0 0 1px var(--accent-edge), 0 4px 18px rgba(53, 183, 158, 0.22);
+  --glow-good: 0 0 16px rgba(79, 189, 154, 0.32);
+
+  --scrim: rgba(8, 10, 12, 0.7);
+  --fiducial: rgba(237, 240, 242, 0.45);
+  color-scheme: dark;
+}
+
+/* -- light ------------------------------------------------------------- */
+
+:root[data-theme='light'] {
+  --well: #d6dadc;
+  --surface-sunk: #eef0f1;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-lifted: #f8f9fa;
+  --field: #ffffff;
+
+  --ink: #14181b;
+  --ink-soft: #424b51;
+  --ink-muted: #59626a;
+  --ink-faint: #6f787f;
+  --ink-inverse: #ffffff;
+
+  --signal-good: #0d6b51;
+  --signal-warn: #7d520f;
+  --signal-bad: #9c3a26;
+  --signal-cool: #3b5d85;
+
+  --rule: #e5e8ea;
+  --rule-strong: #d2d7da;
+  --rule-bright: #b9c0c4;
+
+  --accent: #147a68;
+  --accent-bright: #0f6455;
+  --accent-wash: rgba(27, 156, 133, 0.1);
+  --accent-wash-strong: rgba(27, 156, 133, 0.17);
+  --accent-edge: rgba(20, 122, 104, 0.34);
+  --accent-ink: #ffffff;
+
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 50%);
+  /* Used only on filled accent buttons. On white panels a strong highlight
+     reads as light; on teal it washes out the top half, so it stays faint. */
+  --sheen-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 55%);
+  --highlight: rgba(255, 255, 255, 0.9);
+
+  --elev-1: 0 1px 2px rgba(16, 22, 26, 0.07);
+  --elev-2: 0 2px 6px rgba(16, 22, 26, 0.08), 0 1px 2px rgba(16, 22, 26, 0.05);
+  --elev-3: 0 8px 22px rgba(16, 22, 26, 0.1), 0 2px 6px rgba(16, 22, 26, 0.06);
+  --elev-4: 0 20px 56px rgba(16, 22, 26, 0.16), 0 6px 16px rgba(16, 22, 26, 0.08);
+
+  --glow-accent: 0 0 0 1px var(--accent-edge), 0 4px 18px rgba(20, 122, 104, 0.16);
+  --glow-good: 0 0 16px rgba(79, 189, 154, 0.26);
+
+  --scrim: rgba(255, 255, 255, 0.72);
+  --fiducial: rgba(20, 24, 27, 0.4);
+  color-scheme: light;
+}
+
+/* -- base -------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--surface-sunk);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--type-base);
+  font-weight: 500;
+  line-height: 1.55;
+  letter-spacing: var(--track-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+  user-select: none;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: var(--track-heading);
+}
+
+h1 {
+  font-size: var(--type-display);
+  letter-spacing: var(--track-display);
+  line-height: 1.1;
+}
+
+h2 {
+  font-size: var(--type-mid);
+}
+
+h3 {
+  font-size: var(--type-base);
+}
+
+/* Values an operator compares against other values. */
+.data,
+.numeric {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 1;
+  letter-spacing: var(--track-data);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+::selection {
+  background: var(--accent-wash-strong);
+  color: var(--ink);
+}
+
+/* -- scrollbars -------------------------------------------------------- */
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border-radius: var(--radius-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  transition: background-color var(--base) var(--ease-swift);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-faint);
+  background-clip: content-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* -- controls ---------------------------------------------------------- */
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+input,
+select,
+textarea {
+  font-family: var(--font-body);
+  font-size: var(--type-small);
+  font-weight: 500;
+  letter-spacing: var(--track-body);
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  width: 100%;
+  user-select: text;
+  transition:
+    border-color var(--quick) var(--ease-swift),
+    background var(--quick) var(--ease-swift),
+    box-shadow var(--base) var(--ease-swift);
+}
+
+input.numeric,
+input[type='number'] {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--track-data);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--rule-strong);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+
+input:disabled,
+select:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+input[type='range'] {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 14px) calc(50% + 1px), calc(100% - 9px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+  cursor: pointer;
+}
+
+/* The open list is drawn by the browser from the select's own background.
+   A transparent select (as in the viewer toolbar) leaves it white while the
+   options inherit the theme's ink, which is near-white in dark mode. */
+select option,
+select optgroup {
+  background-color: var(--surface-raised);
+  color: var(--ink);
+}
+
+/* -- buttons ----------------------------------------------------------- */
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: var(--type-small);
+  font-weight: 700;
+  letter-spacing: var(--track-body);
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-strong);
+  background-color: var(--surface-raised);
+  background-image: var(--sheen);
+  color: var(--ink);
+  white-space: nowrap;
+  box-shadow: var(--elev-1);
+  transition:
+    background-color var(--quick) var(--ease-swift),
+    border-color var(--quick) var(--ease-swift),
+    box-shadow var(--base) var(--ease-swift),
+    transform var(--quick) var(--ease-swift),
+    opacity var(--quick) linear;
+}
+
+.btn:hover:not(:disabled) {
+  background-color: var(--surface-lifted);
+  border-color: var(--rule-bright);
+  box-shadow: var(--elev-2);
+  transform: translateY(-1px);
+}
+
+/* The press. A button that gives nothing back feels broken. */
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.975);
+  box-shadow: var(--elev-1);
+  transition-duration: 40ms;
+}
+
+.btn:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn--primary {
+  background-color: var(--accent);
+  background-image: var(--sheen-strong);
+  border-color: transparent;
+  color: var(--accent-ink);
+  box-shadow: var(--elev-2);
+}
+.btn--primary:hover:not(:disabled) {
+  background-color: var(--accent-bright);
+  box-shadow: var(--elev-3), var(--glow-good);
+}
+
+.btn--ghost {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+.btn--ghost:hover:not(:disabled) {
+  background-color: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: none;
+  transform: none;
+}
+
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--signal-bad);
+  color: var(--signal-bad);
+}
+
+.btn--sm {
+  padding: 4px 10px;
+  font-size: var(--type-micro);
+  border-radius: var(--radius-sm);
+}
+.btn--block {
+  width: 100%;
+}
+
+/* -- shared primitives ------------------------------------------------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: var(--step-3);
+}
+
+.field__label {
+  font-size: var(--type-small);
+  font-weight: 700;
+  letter-spacing: var(--track-body);
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.field__hint {
+  font-size: var(--type-micro);
+  font-weight: 500;
+  letter-spacing: var(--track-micro);
+  color: var(--ink-muted);
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
+/* Detail on demand. The trigger is deliberately quiet: it should read as
+   optional, never as a warning. */
+.infotip {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-left: 5px;
+  padding: 0;
+  border: 1px solid var(--rule-bright);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-faint);
+  font: 700 9px/1 var(--font-body);
+  font-style: italic;
+  vertical-align: 1px;
+  cursor: help;
+  transition: color var(--quick), border-color var(--quick);
+}
+
+.infotip:hover,
+.infotip:focus-visible,
+.infotip[aria-expanded='true'] {
+  color: var(--accent);
+  border-color: var(--accent-edge);
+  outline: none;
+}
+
+.infotip__bubble {
+  position: fixed;
+  z-index: 400;
+  max-width: 280px;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
+  background-color: var(--surface-lifted);
+  background-image: var(--sheen);
+  box-shadow: var(--elev-3);
+  color: var(--ink-soft);
+  font-size: var(--type-small);
+  font-weight: 500;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.infotip__bubble p { margin: 0; }
+.infotip__bubble p + p { margin-top: 6px; }
+
+/* Parameters most runs never change sit behind a disclosure, so the default
+   view is only the action. Opening it is the operator's choice. */
+.advanced {
+  margin-bottom: var(--step-3);
+}
+
+.advanced > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: var(--type-small);
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.advanced > summary::-webkit-details-marker { display: none; }
+
+.advanced > summary::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--quick) var(--ease-swift);
+}
+
+.advanced[open] > summary::before {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.advanced > summary:hover,
+.advanced > summary:focus-visible {
+  color: var(--ink);
+  outline: none;
+}
+
+.advanced__body {
+  padding-top: var(--step-2);
+}
+
+.field--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--step-2);
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--step-2);
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--rule), transparent);
+  margin: var(--step-4) 0;
+  border: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-data);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  letter-spacing: var(--track-data);
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--rule-strong);
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  transition: all var(--base) var(--ease-swift);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip--good {
+  color: var(--signal-good);
+  border-color: color-mix(in srgb, var(--signal-good) 40%, transparent);
+  background: color-mix(in srgb, var(--signal-good) 11%, transparent);
+}
+.chip--warn {
+  color: var(--signal-warn);
+  border-color: color-mix(in srgb, var(--signal-warn) 40%, transparent);
+  background: color-mix(in srgb, var(--signal-warn) 11%, transparent);
+}
+.chip--bad {
+  color: var(--signal-bad);
+  border-color: color-mix(in srgb, var(--signal-bad) 40%, transparent);
+  background: color-mix(in srgb, var(--signal-bad) 11%, transparent);
+}
+.chip--accent {
+  color: var(--accent);
+  border-color: var(--accent-edge);
+  background: var(--accent-wash);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.scroll-y {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.muted {
+  color: var(--ink-soft);
+}
+.dim {
+  color: var(--ink-muted);
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Everything decorative stops; everything informative stays legible. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

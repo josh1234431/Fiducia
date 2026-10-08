@@ -1,0 +1,369 @@
+<title>Fiducia Brand Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --teal-bright: #3fc4a8;
+    --teal-lit: #35b79e;
+    --teal-core: #1b9c85;
+    --teal-deep: #147a68;
+
+    --bg: #f4f6f7;
+    --panel: #ffffff;
+    --panel-sunk: #eaeef0;
+    --ink: #14181b;
+    --ink-soft: #3c454c;
+    --ink-faint: #6f787f;
+    --rule: #d8dde0;
+    --point: var(--teal-core);
+    --guide: rgba(27, 156, 133, 0.55);
+
+    --font-body: 'Manrope', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    --font-data: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1013;
+      --panel: #1c2024;
+      --panel-sunk: #14171a;
+      --ink: #edf0f2;
+      --ink-soft: #b6bec4;
+      --ink-faint: #808a91;
+      --rule: #282e33;
+      --point: var(--teal-bright);
+      --guide: rgba(63, 196, 168, 0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1013;
+    --panel: #1c2024;
+    --panel-sunk: #14171a;
+    --ink: #edf0f2;
+    --ink-soft: #b6bec4;
+    --ink-faint: #808a91;
+    --rule: #282e33;
+    --point: var(--teal-bright);
+    --guide: rgba(63, 196, 168, 0.5);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 15px/1.6 var(--font-body);
+    letter-spacing: -0.005em;
+    padding: 0 20px;
+  }
+  .page { max-width: 1040px; margin: 0 auto; padding-block: 56px 96px; display: grid; gap: 88px; }
+
+  h1, h2, h3 { font-weight: 800; letter-spacing: -0.035em; line-height: 1.1; margin: 0; text-wrap: balance; }
+  h2 { font-size: 28px; }
+  h3 { font-size: 17px; letter-spacing: -0.018em; }
+  p { margin: 0; max-width: 62ch; color: var(--ink-soft); }
+  .label {
+    font: 500 11px/1 var(--font-data);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .data { font-family: var(--font-data); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  section { display: grid; gap: 28px; }
+  .head { display: grid; gap: 10px; }
+
+  /* Wordmark: plain type; the teal point belongs to the mark alone */
+  .wordmark { font-weight: 800; letter-spacing: -0.045em; white-space: nowrap; line-height: 1; }
+
+  /* Hero */
+  .hero { display: grid; gap: 36px; padding-top: 12px; }
+  .lockup { display: flex; align-items: center; gap: clamp(16px, 3vw, 28px); flex-wrap: wrap; }
+  .lockup .mark { width: clamp(64px, 11vw, 112px); height: auto; color: var(--ink); }
+  .lockup .wordmark { font-size: clamp(56px, 12vw, 128px); }
+  .tagline { font-size: clamp(20px, 3vw, 26px); font-weight: 600; letter-spacing: -0.02em; color: var(--ink); max-width: none; }
+  .hero-meta { display: flex; flex-wrap: wrap; gap: 12px 36px; }
+  .hero-meta div { display: grid; gap: 6px; }
+
+  /* Name */
+  .name-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 32px; }
+  .name-grid > div { display: grid; gap: 10px; align-content: start; }
+  .etym { font: 500 13px/1.5 var(--font-data); color: var(--ink-faint); }
+  .etym b { color: var(--ink); font-weight: 700; }
+
+  /* Mark construction */
+  .construct { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: center; }
+  .construct svg { width: 100%; max-width: 440px; height: auto; display: block; background: var(--panel); border-radius: 18px; }
+  .construct .frame { stroke: var(--guide); stroke-dasharray: 1.2 1.6; fill: none; stroke-width: 0.5; }
+  .construct .diag { stroke: var(--guide); stroke-width: 0.5; stroke-dasharray: 1.2 1.6; }
+  .construct .glyph { stroke: var(--ink); }
+  .construct .pt { fill: var(--point); }
+  .construct .callout { font: 700 3.4px var(--font-data); fill: var(--ink-faint); }
+  .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+  .legend li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; }
+  .legend .key {
+    width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+    font: 700 11px var(--font-data); background: var(--panel-sunk); color: var(--ink-soft);
+  }
+  .legend strong { display: block; font-weight: 700; color: var(--ink); }
+
+  /* Icons */
+  .icon-row { display: flex; flex-wrap: wrap; align-items: end; gap: 22px 28px; padding: 32px; background: var(--panel); border-radius: 18px; }
+  .icon-row figure { margin: 0; display: grid; gap: 10px; justify-items: center; }
+  .icon-row figcaption { font: 500 11px var(--font-data); color: var(--ink-faint); }
+  .icon-row .split { width: 1px; align-self: stretch; background: var(--rule); }
+
+  /* Colour */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+  .swatch { border-radius: 14px; overflow: hidden; background: var(--panel); border: 1px solid var(--rule); }
+  .swatch .chip { height: 96px; display: flex; align-items: end; padding: 12px; }
+  .swatch .chip span { font: 700 11px var(--font-data); letter-spacing: 0.04em; }
+  .swatch .info { padding: 12px 14px 14px; display: grid; gap: 4px; }
+  .swatch .info strong { font-weight: 700; font-size: 14px; }
+  .swatch .info .data { color: var(--ink-faint); }
+  .swatch .info p { font-size: 13px; line-height: 1.45; }
+
+  /* Type */
+  .type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .specimen { background: var(--panel); border-radius: 18px; padding: 28px; display: grid; gap: 16px; align-content: start; }
+  .specimen .big { font-size: 44px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.05; }
+  .specimen .mono-big { font: 500 30px/1.15 var(--font-data); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .readout { display: grid; grid-template-columns: auto 1fr; gap: 4px 18px; font: 400 13px var(--font-data); font-variant-numeric: tabular-nums; }
+  .readout dt { color: var(--ink-faint); }
+  .readout dd { margin: 0; color: var(--ink); }
+
+  /* Rules */
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .rule-card { background: var(--panel); border-radius: 18px; padding: 20px; display: grid; gap: 14px; align-content: start; }
+  .rule-card .demo { height: 120px; border-radius: 12px; background: var(--panel-sunk); display: grid; place-items: center; overflow: hidden; }
+  .rule-card .verdict { font: 700 11px var(--font-data); letter-spacing: 0.08em; text-transform: uppercase; }
+  .rule-card .verdict.yes { color: var(--point); }
+  .rule-card .verdict.no { color: #c9725b; }
+  .rule-card p { font-size: 13.5px; line-height: 1.5; }
+
+  /* Voice */
+  .voice { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .quote { background: var(--panel); border-radius: 18px; padding: 24px; display: grid; gap: 12px; align-content: start; }
+  .quote blockquote { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.3; color: var(--ink); }
+  .quote p { font-size: 13.5px; }
+
+  .files { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .files-wrap { overflow-x: auto; background: var(--panel); border-radius: 18px; padding: 6px 20px; }
+  .files td { padding: 12px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .files tr:last-child td { border-bottom: none; }
+  .files td:first-child { font-family: var(--font-data); font-size: 12.5px; padding-right: 24px; white-space: nowrap; color: var(--ink); }
+  .files td:last-child { color: var(--ink-soft); }
+
+  @media (max-width: 720px) {
+    .construct { grid-template-columns: 1fr; }
+    .page { gap: 64px; padding-block: 36px 64px; }
+    .icon-row { padding: 22px; }
+    .icon-row .split { display: none; }
+  }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="glyph" viewBox="10 10 44 44">
+      <path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="32" cy="32" r="4.75" style="fill: var(--point)"/>
+    </symbol>
+    <linearGradient id="tile-dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20252a"/><stop offset="1" stop-color="#0e1013"/>
+    </linearGradient>
+    <linearGradient id="tile-light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e6eaec"/>
+    </linearGradient>
+    <symbol id="icon-dark" viewBox="0 0 64 64">
+      <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#tile-dark)"/>
+      <path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="#edf0f2" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="32" cy="32" r="4.75" fill="#3fc4a8"/>
+    </symbol>
+    <symbol id="icon-light" viewBox="0 0 64 64">
+      <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#tile-light)" stroke="#d8dde0" stroke-width="0.6"/>
+      <path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="#14181b" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="32" cy="32" r="4.75" fill="#1b9c85"/>
+    </symbol>
+  </defs>
+</svg>
+
+<main class="page">
+
+  <header class="hero">
+    <span class="label">Brand guide · v1.2 · September 2026</span>
+    <div class="lockup" role="img" aria-label="Fiducia logo">
+      <svg class="mark" viewBox="10 10 44 44" aria-hidden="true"><use href="#glyph" x="10" y="10" width="44" height="44"/></svg>
+      <span class="wordmark">Fiducia</span>
+    </div>
+    <p class="tagline">Trust every point.</p>
+    <div class="hero-meta">
+      <div><span class="label">Product</span><span>Aerial and satellite photogrammetry workstation</span></div>
+      <div><span class="label">Made by</span><span>Joshua Metcalf · <a href="https://www.linkedin.com/in/joshua-metcalf-1b2184263" target="_blank" rel="noreferrer">LinkedIn</a></span></div>
+      <div><span class="label">Formerly</span><span>Fiduplanus, Stimulus</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="head">
+      <span class="label">The name</span>
+      <h2>Named for the marks that make a photograph measurable</h2>
+    </div>
+    <div class="name-grid">
+      <div>
+        <p class="etym"><b>fīdūcia</b> · Latin · trust, confidence, reliance</p>
+        <p>Fiducial marks are the small registration marks exposed onto every frame of aerial film. Until they are measured, a scan is just a picture. Once they are, every pixel can be traced back to the camera and down to the ground.</p>
+      </div>
+      <div>
+        <p class="etym"><b>What it promises</b></p>
+        <p>The software's job is to be trusted. Every edit is journalled before it is acknowledged, paths survive a drive letter changing, and a failed adjustment names the suspect point. The name makes that promise out loud.</p>
+      </div>
+      <div>
+        <p class="etym"><b>How to write it</b></p>
+        <p>Fiducia, capital F, one word. Never FIDUCIA in running text, never fiducia except in code and file names. The project bundle keeps its <span class="data">.fidu</span> extension.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <span class="label">The mark</span>
+      <h2>A film frame, reduced to what you need to find its centre</h2>
+      <p>On a metric camera, lines drawn between opposite fiducials cross at the principal point: the true centre of the photograph, and the origin every measurement is taken from. The mark keeps two of those fiducials and the point between them.</p>
+    </div>
+    <div class="construct">
+      <svg viewBox="0 0 64 64" role="img" aria-label="Construction of the Fiducia mark, showing the implied frame and diagonals meeting at the principal point">
+        <rect class="frame" x="14" y="14" width="36" height="36"/>
+        <line class="diag" x1="14" y1="14" x2="50" y2="50"/>
+        <line class="diag" x1="50" y1="14" x2="14" y2="50"/>
+        <path class="glyph" d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle class="pt" cx="32" cy="32" r="4.75"/>
+        <text class="callout" x="38.5" y="12">1</text>
+        <text class="callout" x="52" y="39">2</text>
+        <text class="callout" x="36.5" y="28">3</text>
+      </svg>
+      <ol class="legend">
+        <li><span class="key">1</span><div><strong>The F is a fiducial</strong><p>The top-left corner mark, given a crossbar. It is the only letterform in the mark.</p></div></li>
+        <li><span class="key">2</span><div><strong>The opposite fiducial</strong><p>The bottom-right corner closes the frame. The frame itself is implied, never drawn.</p></div></li>
+        <li><span class="key">3</span><div><strong>The principal point</strong><p>Exactly where the diagonals cross. It is the one teal element in the logo.</p></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <span class="label">App icon</span>
+      <h2>Built on a 64-unit grid, legible down to 16 pixels</h2>
+      <p>The dark tile is the default: it matches the workspace and keeps the photograph the brightest thing on screen. The light tile is for light documents and slides.</p>
+    </div>
+    <div class="icon-row">
+      <figure><svg width="128" height="128"><use href="#icon-dark"/></svg><figcaption>128</figcaption></figure>
+      <figure><svg width="64" height="64"><use href="#icon-dark"/></svg><figcaption>64</figcaption></figure>
+      <figure><svg width="48" height="48"><use href="#icon-dark"/></svg><figcaption>48</figcaption></figure>
+      <figure><svg width="32" height="32"><use href="#icon-dark"/></svg><figcaption>32</figcaption></figure>
+      <figure><svg width="16" height="16"><use href="#icon-dark"/></svg><figcaption>16</figcaption></figure>
+      <span class="split" aria-hidden="true"></span>
+      <figure><svg width="64" height="64"><use href="#icon-light"/></svg><figcaption>light 64</figcaption></figure>
+      <figure><svg width="32" height="32"><use href="#icon-light"/></svg><figcaption>light 32</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <span class="label">Colour</span>
+      <h2>Grey surfaces, one teal</h2>
+      <p>Imagery is the loudest thing Fiducia ever shows, so the interface stays in desaturated greys and uses a single teal for whatever needs registering: the principal point, the active step, the primary action.</p>
+    </div>
+    <div class="swatches">
+      <div class="swatch"><div class="chip" style="background:#3fc4a8"><span style="color:#04211b">#3FC4A8</span></div><div class="info"><strong>Point teal</strong><span class="data">teal-bright</span><p>The principal point on dark. Highlights and progress.</p></div></div>
+      <div class="swatch"><div class="chip" style="background:#35b79e"><span style="color:#04211b">#35B79E</span></div><div class="info"><strong>Accent</strong><span class="data">teal-lit</span><p>Buttons, active steps and focus in the dark app.</p></div></div>
+      <div class="swatch"><div class="chip" style="background:#1b9c85"><span style="color:#ffffff">#1B9C85</span></div><div class="info"><strong>Core teal</strong><span class="data">teal-core</span><p>The principal point on light, and print.</p></div></div>
+      <div class="swatch"><div class="chip" style="background:#0e1013"><span style="color:#edf0f2">#0E1013</span></div><div class="info"><strong>Well</strong><span class="data">well</span><p>Deepest surface, behind the imagery.</p></div></div>
+      <div class="swatch"><div class="chip" style="background:#1c2024"><span style="color:#edf0f2">#1C2024</span></div><div class="info"><strong>Surface</strong><span class="data">surface</span><p>Panels, title bar and rails.</p></div></div>
+      <div class="swatch"><div class="chip" style="background:#edf0f2"><span style="color:#14181b">#EDF0F2</span></div><div class="info"><strong>Ink</strong><span class="data">ink</span><p>Text and the mark on dark. Use #14181B on light.</p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <span class="label">Type</span>
+      <h2>A rounded sans for language, a neutral sans for numbers</h2>
+      <p>Anything an operator reads is set in Manrope. Anything they compare against another value is set in Inter, always with tabular figures so columns line up.</p>
+    </div>
+    <div class="type-grid">
+      <div class="specimen">
+        <span class="label">Manrope · 400 to 800</span>
+        <div class="big">A photograph is not a map.</div>
+        <p>Wordmark and headings at 800 with tight tracking (−0.035 to −0.045em). Body at 400, interface labels at 600.</p>
+      </div>
+      <div class="specimen">
+        <span class="label">Inter · 400 / 500 · tabular figures</span>
+        <div class="mono-big">σ₀ 0.0841</div>
+        <dl class="readout">
+          <dt>frame</dt><dd>frame_0042</dd>
+          <dt>focal</dt><dd>100.50 mm</dd>
+          <dt>altitude</dt><dd>2992 m</dd>
+          <dt>RMS</dt><dd>0.42 px</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <span class="label">Using the logo</span>
+      <h2>Keep the point teal and the frame open</h2>
+    </div>
+    <div class="rules">
+      <div class="rule-card">
+        <div class="demo"><svg class="mark" width="64" height="64" viewBox="10 10 44 44" style="color:var(--ink)"><use href="#glyph" x="10" y="10" width="44" height="44"/></svg></div>
+        <span class="verdict yes">Do</span>
+        <p>Give the mark clear space on every side equal to the length of the F's crossbar. Keep the mark at 14 px or larger, and the icon at 16 px or larger.</p>
+      </div>
+      <div class="rule-card">
+        <div class="demo"><svg width="64" height="64" viewBox="10 10 44 44" aria-hidden="true"><path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="var(--ink)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="32" cy="32" r="4.75" fill="#d4a259"/></svg></div>
+        <span class="verdict no">Don't</span>
+        <p>Recolour the principal point. It is teal everywhere, including single-colour print, where it can drop to black but never to another hue.</p>
+      </div>
+      <div class="rule-card">
+        <div class="demo"><svg width="64" height="64" viewBox="10 10 44 44" aria-hidden="true"><rect x="14" y="14" width="36" height="36" stroke="var(--ink)" stroke-width="2" fill="none"/><path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="var(--ink)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="32" cy="32" r="4.75" fill="var(--point)"/></svg></div>
+        <span class="verdict no">Don't</span>
+        <p>Draw the frame or add the other two corners. The mark only works because the frame is implied.</p>
+      </div>
+      <div class="rule-card">
+        <div class="demo"><svg width="64" height="64" viewBox="10 10 44 44" aria-hidden="true" style="transform:rotate(-14deg)"><path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="var(--ink)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="32" cy="32" r="4.75" fill="var(--point)"/></svg></div>
+        <span class="verdict no">Don't</span>
+        <p>Rotate, tilt or skew it. A fiducial frame is only useful when it is square to the image.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <span class="label">Voice</span>
+      <h2>Plain, specific, and checkable</h2>
+      <p>Fiducia talks like a careful surveyor: short sentences, real units, and claims the reader could verify. It names the problem and what to do about it, and it never apologises or sells.</p>
+    </div>
+    <div class="voice">
+      <div class="quote"><span class="label">Headline</span><blockquote>A photograph is not a map.</blockquote><p>States the problem the product exists to solve, in six words.</p></div>
+      <div class="quote"><span class="label">Promise</span><blockquote>Pull the power out and you lose nothing.</blockquote><p>A concrete claim instead of "reliable autosave".</p></div>
+      <div class="quote"><span class="label">Error</span><blockquote>Point GCP-14 is 3.2 m from where the other 23 put it. Check it first.</blockquote><p>Names the suspect, the size of the problem and the next step. Never just "Bundle adjustment failed."</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head">
+      <span class="label">Files</span>
+      <h2>Source artwork in the repository</h2>
+    </div>
+    <div class="files-wrap">
+      <table class="files">
+        <tr><td>resources/brand/fiducia-icon.svg</td><td>App icon, dark tile. The master for every raster size.</td></tr>
+        <tr><td>resources/brand/fiducia-icon-light.svg</td><td>App icon, light tile.</td></tr>
+        <tr><td>resources/brand/fiducia-mark.svg</td><td>Mark without a tile. Strokes follow the surrounding text colour; the point stays teal.</td></tr>
+        <tr><td>resources/icon.png, icon.ico</td><td>1024 px PNG and a Windows icon with 16 to 256 px sizes, used by the app window and the installer.</td></tr>
+        <tr><td>src/components/Brand.jsx</td><td>The mark and wordmark as React components, used in the title bar.</td></tr>
+      </table>
+    </div>
+  </section>
+
+</main>

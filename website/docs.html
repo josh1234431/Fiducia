@@ -1,0 +1,1259 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fiducia User Guide</title>
+<script>try{var t=localStorage.getItem('fiducia-site-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<meta name="description" content="The Fiducia user guide: every step of the photogrammetric workflow, the settings behind it, and what to do when something goes wrong.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 8 48 48'%3E%3Cstyle%3Epath%7Bstroke:%2314181b%7D@media (prefers-color-scheme:dark)%7Bpath%7Bstroke:%23edf0f2%7D%7D%3C/style%3E%3Cpath d='M14 44V14h22M14 25.5h10M50 41v9h-9' fill='none' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5.2' fill='%233fc4a8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --bg: #0e1013; --panel: #171b1f; --panel-raised: #1c2024;
+  --rule: #262c31; --rule-strong: #343b41;
+  --ink: #edf0f2; --ink-soft: #b6bec4; --ink-faint: #808a91;
+  --accent: #35b79e; --accent-bright: #3fc4a8;
+  --accent-wash: rgba(63, 196, 168, 0.10); --accent-wash-strong: rgba(63, 196, 168, 0.20);
+  --fid: #e3937b; --warn: #e0b45c; --good: #6fd0a0;
+  --mark: rgba(224, 180, 92, 0.32);
+  --font-display: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-data: "Inter", "Segoe UI", system-ui, sans-serif;
+  --ease-swift: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f4f6f7; --panel: #ffffff; --panel-raised: #ffffff;
+    --rule: #d8dde0; --rule-strong: #c3cace;
+    --ink: #14181b; --ink-soft: #3c454c; --ink-faint: #6f787f;
+    --accent: #147a68; --accent-bright: #1b9c85;
+    --accent-wash: rgba(27, 156, 133, 0.08); --accent-wash-strong: rgba(27, 156, 133, 0.16);
+    --fid: #b4482f; --warn: #a66b00; --good: #1f7a4d;
+    --mark: rgba(224, 180, 92, 0.38);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f4f6f7; --panel: #ffffff; --panel-raised: #ffffff;
+  --rule: #d8dde0; --rule-strong: #c3cace;
+  --ink: #14181b; --ink-soft: #3c454c; --ink-faint: #6f787f;
+  --accent: #147a68; --accent-bright: #1b9c85;
+  --accent-wash: rgba(27, 156, 133, 0.08); --accent-wash-strong: rgba(27, 156, 133, 0.16);
+  --fid: #b4482f; --warn: #a66b00; --good: #1f7a4d;
+  --mark: rgba(224, 180, 92, 0.38);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent-bright); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 3px; border-radius: 4px; }
+mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+kbd {
+  font-family: var(--font-data); font-size: 0.82em; font-weight: 600;
+  padding: 1px 6px; border-radius: 5px;
+  border: 1px solid var(--rule-strong); border-bottom-width: 2px;
+  background: var(--panel); color: var(--ink);
+  white-space: nowrap;
+}
+code { font-family: var(--font-data); font-size: 0.88em; background: var(--panel); border: 1px solid var(--rule); border-radius: 5px; padding: 0 5px; overflow-wrap: anywhere; }
+pre { font-family: var(--font-data); font-size: 13px; line-height: 1.55; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+pre code { background: none; border: 0; padding: 0; }
+
+/* -- header -- */
+.top {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--rule);
+}
+.top__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px clamp(16px, 4vw, 40px); max-width: 1320px; margin: 0 auto; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
+.brand svg { width: 26px; height: 26px; }
+.brand small { font-weight: 600; font-size: 14px; color: var(--ink-faint); letter-spacing: 0; }
+.top__links { display: flex; align-items: center; gap: 20px; }
+.top__links a { color: var(--ink-soft); text-decoration: none; font-size: 14px; font-weight: 600; }
+.top__links a:hover { color: var(--ink); }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 8px;
+  font: 700 13px var(--font-body); text-decoration: none; border: 1px solid var(--accent);
+  background: var(--accent); color: #06110e;
+}
+:root[data-theme="light"] .btn { color: #fff; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn { color: #fff; } }
+@media (max-width: 640px) { .top__links a:not(.btn) { display: none; } }
+/* theme toggle: a camera aperture, stopped down for dark, open for light */
+.aperture {
+  display: grid; place-items: center; width: 36px; height: 36px; padding: 0;
+  border-radius: 50%; border: 1px solid var(--rule-strong); background: var(--panel);
+  color: var(--ink-soft); cursor: pointer;
+  transition: color 160ms, border-color 160ms, transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.aperture:hover { color: var(--ink); border-color: var(--accent); }
+.aperture:active { transform: scale(0.92); }
+.aperture svg { width: 24px; height: 24px; overflow: visible; }
+.aperture__ring { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.aperture__blade { stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+.aperture__dot { fill: #3fc4a8; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+/* -- layout -- */
+.docs {
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px);
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 4vw, 40px);
+}
+.side {
+  position: sticky; top: 64px;
+  align-self: start;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 24px 4px 32px 0;
+  scrollbar-width: thin;
+}
+.search { position: relative; margin-bottom: 18px; }
+.search input {
+  width: 100%;
+  font: 500 15px var(--font-body);
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--rule-strong);
+  border-radius: 10px;
+  padding: 10px 40px 10px 36px;
+}
+.search input::placeholder { color: var(--ink-faint); }
+.search svg { position: absolute; left: 11px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); color: var(--ink-faint); pointer-events: none; }
+.search kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.search__count { font-family: var(--font-data); font-size: 12px; color: var(--ink-faint); margin: -8px 0 10px; min-height: 18px; }
+
+.toc { display: grid; gap: 16px; }
+.toc__group { display: grid; gap: 2px; }
+.toc__title { font-family: var(--font-data); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 4px; }
+.toc a {
+  display: block; padding: 4px 10px; border-radius: 7px;
+  color: var(--ink-soft); text-decoration: none; font-size: 14.5px; font-weight: 500;
+  border-left: 2px solid transparent;
+}
+.toc a:hover { color: var(--ink); background: var(--accent-wash); }
+.toc a.on { color: var(--ink); background: var(--accent-wash); border-left-color: var(--accent-bright); }
+
+.results { display: grid; gap: 6px; }
+.results[hidden] { display: none; }
+.result {
+  display: block; text-decoration: none; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--rule); background: var(--panel);
+}
+.result:hover, .result.on { border-color: var(--accent); }
+.result__title { color: var(--ink); font-weight: 700; font-size: 14.5px; }
+.result__group { color: var(--ink-faint); font-family: var(--font-data); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+.result__snippet { color: var(--ink-soft); font-size: 13.5px; line-height: 1.5; margin-top: 3px; }
+.results__empty { color: var(--ink-faint); font-size: 14px; padding: 6px 2px; }
+
+/* -- article -- */
+.article { padding: 32px 0 96px; min-width: 0; max-width: 820px; }
+.intro { padding-bottom: 24px; border-bottom: 1px solid var(--rule); margin-bottom: 8px; }
+.eyebrow { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-data); font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-bright); }
+.eyebrow::before { content: ""; width: 14px; height: 14px; background: linear-gradient(var(--accent-bright), var(--accent-bright)) center / 14px 2px no-repeat, linear-gradient(var(--accent-bright), var(--accent-bright)) center / 2px 14px no-repeat; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(34px, 4.6vw, 52px); line-height: 1.05; font-weight: 800; letter-spacing: -0.035em; margin: 12px 0 14px; }
+.lede { font-size: 18px; color: var(--ink-soft); max-width: 62ch; margin: 0; }
+.doc { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
+.doc:last-of-type { border-bottom: 0; }
+.doc__group { font-family: var(--font-data); font-size: 11.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+.doc h2 { font-size: clamp(26px, 3vw, 34px); line-height: 1.12; font-weight: 800; letter-spacing: -0.025em; margin: 4px 0 14px; }
+.doc h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 26px 0 8px; }
+.doc p { margin: 0 0 14px; color: var(--ink-soft); }
+.doc p strong, .doc li strong { color: var(--ink); }
+.doc ul, .doc ol { margin: 0 0 16px; padding-left: 22px; color: var(--ink-soft); }
+.doc li { margin: 4px 0; }
+.doc li::marker { color: var(--accent-bright); }
+.anchor { color: var(--ink-faint); text-decoration: none; margin-left: 8px; font-weight: 600; opacity: 0; transition: opacity 150ms; }
+.doc h2:hover .anchor, .anchor:focus { opacity: 1; }
+
+.flash { animation: flash 1.6s var(--ease-swift); }
+@keyframes flash { 0% { background: var(--accent-wash-strong); } 100% { background: transparent; } }
+
+.note, .tip {
+  border: 1px solid var(--rule); border-left: 3px solid var(--accent-bright);
+  background: var(--panel); border-radius: 10px; padding: 12px 16px; margin: 0 0 16px;
+  color: var(--ink-soft); font-size: 15px;
+}
+.tip { border-left-color: var(--warn); }
+.note b, .tip b { color: var(--ink); }
+
+table { width: 100%; border-collapse: collapse; margin: 0 0 18px; font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+th { font-family: var(--font-data); font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+td { color: var(--ink-soft); }
+td:first-child { color: var(--ink); font-weight: 600; }
+.table-wrap { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--rule); border-radius: 12px; }
+.table-wrap table { margin: 0; }
+.table-wrap tr:last-child td { border-bottom: 0; }
+
+.shot { margin: 6px 0 22px; border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--panel); }
+.shot img { display: block; width: 100%; height: auto; }
+.shot figcaption { font-family: var(--font-data); font-size: 12.5px; color: var(--ink-faint); padding: 9px 14px; border-top: 1px solid var(--rule); }
+
+.steps-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+.steps-strip a { font-family: var(--font-data); font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--rule-strong); color: var(--ink-soft); text-decoration: none; }
+.steps-strip a:hover { border-color: var(--accent); color: var(--ink); }
+
+.to-top { position: fixed; right: 18px; bottom: 18px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--rule-strong); background: var(--panel); color: var(--ink-soft); display: grid; place-items: center; text-decoration: none; opacity: 0; pointer-events: none; transition: opacity 200ms; }
+.to-top.on { opacity: 1; pointer-events: auto; }
+
+@media (max-width: 900px) {
+  .docs { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; max-height: none; overflow: visible; padding: 20px 0 0; border-bottom: 1px solid var(--rule); }
+  .toc-wrap { margin-bottom: 16px; }
+  .toc-wrap > summary { cursor: pointer; font-weight: 700; padding: 6px 0; color: var(--ink); }
+}
+@media (min-width: 901px) {
+  .toc-wrap > summary { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .flash { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top__row">
+    <a class="brand" href="index.html" aria-label="Fiducia home">
+      <svg viewBox="10 10 44 44" aria-hidden="true">
+        <path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="4.75" fill="#3fc4a8"/>
+      </svg>
+      Fiducia <small>User guide</small>
+    </a>
+    <nav class="top__links" aria-label="Site">
+      <a href="index.html">Home</a>
+      <a href="index.html#documents">Documents</a>
+      <button class="aperture" id="theme-toggle" type="button" aria-label="Switch theme">
+        <svg viewBox="-12 -12 24 24" aria-hidden="true"></svg>
+      </button>
+      <a class="btn" href="index.html#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<div class="docs">
+  <aside class="side" aria-label="Guide navigation">
+    <div class="search" role="search">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m10.6 10.6 3.6 3.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input id="q" type="search" placeholder="Search the guide" autocomplete="off" aria-label="Search the guide" aria-controls="results">
+      <kbd id="q-key">/</kbd>
+    </div>
+    <div class="search__count" id="count" aria-live="polite"></div>
+    <div class="results" id="results" hidden></div>
+    <details class="toc-wrap" id="toc-wrap" open>
+      <summary>Contents</summary>
+      <nav class="toc" id="toc" aria-label="Contents"></nav>
+    </details>
+  </aside>
+
+  <main class="article" id="article">
+    <div class="intro">
+      <span class="eyebrow">Documentation</span>
+      <h1>Fiducia user guide</h1>
+      <p class="lede">
+        Everything Fiducia does, step by step, with the settings behind each one and what to do when
+        something doesn't go to plan. Search with <kbd>/</kbd>, or browse the contents.
+      </p>
+    </div>
+
+    <!-- ================================================================ GETTING STARTED -->
+
+    <section class="doc" id="install" data-group="Getting started" data-title="Installing Fiducia">
+      <div class="doc__group">Getting started</div>
+      <h2>Installing Fiducia</h2>
+      <p>
+        Fiducia runs on <strong>Windows 10 or 11, 64-bit</strong>. Download the installer from the
+        <a href="index.html#download">download section</a> and run it.
+      </p>
+      <ul>
+        <li><strong>No admin rights needed.</strong> It installs just for your user account, so it works on university and work computers.</li>
+        <li><strong>SmartScreen will ask first.</strong> The installer isn't code-signed yet, so Windows shows a warning on first run. Choose <em>More info</em>, then <em>Run anyway</em>.</li>
+        <li><strong>Shortcuts.</strong> You get a Start menu and a desktop shortcut, and you can choose the install folder.</li>
+        <li><strong>Check the download.</strong> Each release lists the installer's SHA-256. In PowerShell: <code>Get-FileHash .\Fiducia-Setup-0.1.0.exe -Algorithm SHA256</code></li>
+      </ul>
+      <p>
+        To remove Fiducia, use <em>Settings → Apps</em> in Windows like any other program. Your projects
+        are separate folders and are never removed by uninstalling.
+      </p>
+      <div class="note">
+        <b>Your data stays on your computer.</b> Projects, photographs, your name, keys and settings
+        are kept locally. There is no account and no cloud storage. The only time Fiducia uses the
+        network is if you choose an online service to read a calibration certificate.
+      </div>
+    </section>
+
+    <section class="doc" id="first-project" data-group="Getting started" data-title="Your first project">
+      <div class="doc__group">Getting started</div>
+      <h2>Your first project</h2>
+      <p>
+        The start screen offers <strong>New project</strong>, <strong>Open project</strong> and a list
+        of recent projects. The first time you launch, a three-page introduction runs first; you can see
+        it again from <em>Settings → General</em> or the command palette.
+      </p>
+      <ol>
+        <li>Choose <strong>New project</strong>, type a <strong>Project name</strong> and <strong>Choose a folder</strong>. Fiducia shows the exact bundle path it will create before you commit.</li>
+        <li>Answer <strong>What are you processing?</strong>: <em>Drone photos</em>, <em>Scanned film photos</em>, <em>Satellite scenes</em> or <em>Everything</em>. This decides which steps lead the rail, in what order and under what names. The other steps stay under <strong>More tools</strong>, and you can change the choice later on the <a href="#step-project">Project</a> step without losing any work.</li>
+        <li>Choose <strong>Create project</strong>. A project is a folder ending in <code>.fidu</code>; everything about it lives inside.</li>
+        <li>Work down the steps on the left, from <a href="#step-project">Project</a> to <a href="#step-reports">Reports</a>. Each step shows whether it is ready, done or needs attention, so you can see the state of the whole block at a glance.</li>
+      </ol>
+      <p>
+        To open an existing project, choose <strong>Open project</strong> and select its
+        <code>.fidu</code> folder, or click it in <strong>Recent</strong>. Clicking the Fiducia logo in
+        the title bar closes the project and returns to the start screen.
+      </p>
+      <p>For drone photos, see <a href="#drone">Drone photos</a>: the setup is adding the photos and choosing <strong>Align photos</strong>.</p>
+      <h3>A typical film block</h3>
+      <div class="steps-strip">
+        <a href="#step-project">1 Project</a><a href="#step-camera">2 Camera</a><a href="#step-images">3 Images</a><a href="#step-control">4 Control</a><a href="#step-model">5 Model</a><a href="#step-ortho">6 Ortho</a><a href="#step-mosaic">7 Mosaic</a><a href="#step-dem">8 Stereo DEM</a><a href="#step-terrain">9 Terrain</a><a href="#step-lidar">10 LiDAR</a><a href="#step-reports">11 Reports</a>
+      </div>
+      <p>
+        Set the coordinate system and output pixel size, enter or read the camera calibration, add the
+        photographs and measure their fiducials (film only), collect ground control and tie points,
+        compute the bundle adjustment, then make orthophotos, a mosaic and elevation models from the
+        solved block.
+      </p>
+    </section>
+
+    <section class="doc" id="drone" data-group="Getting started" data-title="Drone photos">
+      <div class="doc__group">Getting started</div>
+      <h2>Drone photos</h2>
+      <p>
+        GPS-tagged photos from a drone need no calibration certificate, no ground control and no manual
+        setup. Create the project with <em>Drone photos</em>, and the rail reads Project, Photos, Control
+        (optional), Solve, Surface, Ortho, Mosaic, Terrain and Reports.
+      </p>
+      <div class="steps-strip">
+        <a href="#drone-align">1 Photos</a><a href="#drone-solve">2 Solve</a><a href="#drone-surface">3 Surface</a><a href="#drone-ortho">4 Ortho</a><a href="#step-mosaic">5 Mosaic</a>
+      </div>
+
+      <h3 id="drone-align">Aligning the photos</h3>
+      <p>
+        Add the JPEGs straight off the drone in the <strong>Photos</strong> step and choose
+        <strong>Align photos</strong>. Fiducia then:
+      </p>
+      <ul>
+        <li><strong>Sets up the camera</strong> from the photos' own metadata: focal length, pixel size and image size. A 16:9 photo from a 4:3 sensor, as most drones and phones take, is recognised, so the pixel size is not overstated.</li>
+        <li><strong>Places every photo</strong> from its GPS position, in the UTM zone that position is in, with an output pixel twice the photos' ground resolution. Either can be changed on the Project step afterwards.</li>
+        <li><strong>Measures heading and flying height</strong> from how features move between neighbouring photos, where the photos don't record them.</li>
+        <li><strong>Matches tie points</strong> between each photo and its neighbours. Features are spread across every part of the frame, so roads and open ground are matched as well as busy texture such as trees, and each match is checked against the pair's geometry and depth.</li>
+      </ul>
+      <p>
+        The step then shows the number of tie points (and how many are on three or more photos), the
+        flying height, the ground pixel and how many overlapping pairs matched. Photos placed by GPS carry a
+        <em>GPS</em> tag until the block is solved.
+      </p>
+
+      <h3 id="drone-solve">Solving the block</h3>
+      <p>
+        Choose <strong>Compute model</strong> on the <strong>Solve</strong> step. Ground control is not
+        needed: the block is held by the photos' GPS positions, each weighted as GPS deserves (3 m
+        horizontally, 5 m vertically by default). The lens distortion and principal point are calibrated in
+        the same solve, with the focal length held, because a block of photos looking straight down cannot
+        tell focal length from flying height without control. Tie points that fail the outlier test are
+        removed and the block solved again automatically.
+      </p>
+      <p>
+        The result has two parts. How well the photos fit <em>one another</em> is shown as the image RMS
+        (well under a pixel on a good flight). How well the block is <em>placed</em> is stated in one note:
+        it is only as good as the drone's GPS, typically metres. Ground control, if you add it on the
+        Control step, ties it to your survey.
+      </p>
+
+      <h3 id="drone-surface">The dense surface</h3>
+      <p>
+        On the <strong>Surface</strong> step, <strong>Build dense surface</strong> matches every
+        well-overlapping pair of photos pixel by pixel and fuses the results, keeping each height that at
+        least two pairs agree on. Where none agree (moving trees, water, deep shadow) the surface made from
+        the tie points fills in, so it has no holes. The search is bounded by the heights the tie points
+        already found, which keeps it fast. <em>Detail</em> sets the resolution the photos are matched at
+        (low, medium or high).
+      </p>
+      <p>
+        Every solve also makes a smoother surface from the tie points alone, so orthophotos can be made
+        before the dense surface exists. Whichever is newer is used for orthophotos, unless you have set a
+        DEM of your own. If the block is solved again, the dense surface is marked <em>out of date</em>.
+      </p>
+
+      <h3 id="drone-ortho">True orthophotos</h3>
+      <p>
+        On a surface with trees and buildings in it, part of the ground is hidden from each photo: the road
+        under an overhanging crown, the yard behind a wall. With <strong>Leave out ground each photo can't
+        see</strong> on (the default for a drone block's own surface), each orthophoto records which of its
+        pixels are hidden, and the mosaic takes that ground from a photo that does see it. Only where no
+        photo sees it is the hidden pixel used, so the mosaic never has holes. Drone mosaics default to
+        seams that follow where the photos agree, with a narrow blend, so trees don't ghost.
+      </p>
+
+      <h3>Getting good results</h3>
+      <ul>
+        <li>Fly with plenty of overlap: about 75% forward and 65% between strips.</li>
+        <li>Photos looking straight down suit Fiducia best.</li>
+        <li>Wind moves leaves between photos, so dense forest canopy is the hardest thing to match; open ground, roads, buildings and single trees come out well.</li>
+        <li>For survey accuracy, add ground control or check points: GPS-only blocks are placed to the accuracy of the drone's GPS.</li>
+      </ul>
+    </section>
+
+    <section class="doc" id="workspace" data-group="Getting started" data-title="The workspace">
+      <div class="doc__group">Getting started</div>
+      <h2>The workspace</h2>
+      <figure class="shot"><img src="images/model.jpg" alt="The Fiducia workspace: the step rail on the left, a photograph with measured control points in the centre, and the Model panel on the right" loading="lazy"><figcaption>The step rail, the canvas and the panel for the current step</figcaption></figure>
+      <ul>
+        <li><strong>Title bar.</strong> The project name and folder, the save indicator (<em>Saved</em>, <em>Saving…</em>, or <em>Not saving</em> if the disk refuses writes), <em>Snapshot</em>, <em>Commands</em>, the light and dark theme switch, and the engine light. Hover the light to see whether the processing engine is running and how many jobs are in progress.</li>
+        <li><strong>Step rail.</strong> The steps of your workflow in working order, with the rest under <em>More tools</em>. An empty ring is locked (it needs earlier steps), a dashed ring is ready, an amber ring needs attention and a filled green tick is done. Underneath, readouts show the photographs, control, tie points and sigma nought of the current solution. Hide the rail with <kbd>Ctrl</kbd> <kbd>B</kbd>.</li>
+        <li><strong>Canvas.</strong> One persistent viewer. The photograph stays put while the step changes what is drawn on it. Generated orthos, mosaics and DEMs open here too.</li>
+        <li><strong>Panel.</strong> The settings and results for the current step. Hide it with <kbd>Ctrl</kbd> <kbd>\</kbd> for more room.</li>
+        <li><strong>Activity bar.</strong> Background jobs with progress and a cancel button. When a job finishes, its <strong>View</strong> button jumps straight to the result.</li>
+      </ul>
+      <p>
+        Small <strong>i</strong> marks next to settings explain what they do and when to change them.
+        Hover or click them; <kbd>Esc</kbd> closes them.
+      </p>
+    </section>
+
+    <section class="doc" id="shortcuts" data-group="Getting started" data-title="Keyboard and mouse">
+      <div class="doc__group">Getting started</div>
+      <h2>Keyboard and mouse</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Keys</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>Ctrl</kbd> <kbd>K</kbd></td><td>Command palette: go to any step, image or action by name</td></tr>
+          <tr><td><kbd>Alt</kbd> <kbd>1</kbd> … <kbd>9</kbd></td><td>Jump to step 1 to 9 (Project to Terrain)</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>B</kbd></td><td>Show or hide the step rail</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>\</kbd></td><td>Show or hide the step panel</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd></td><td>Move through and run commands in the palette</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Close the palette, Settings, an info tip, or the new project form</td></tr>
+          <tr><td>Mouse wheel</td><td>Zoom the canvas about the cursor, so the feature under the pointer stays put</td></tr>
+          <tr><td>Left drag</td><td>Pan the canvas (unless you are placing a point)</td></tr>
+          <tr><td>Middle drag</td><td>Always pans, even while placing a point</td></tr>
+        </tbody>
+      </table></div>
+      <figure class="shot"><img src="images/palette.jpg" alt="The command palette open over the workspace, filtered by typing" loading="lazy"><figcaption>The command palette, <kbd>Ctrl</kbd> <kbd>K</kbd></figcaption></figure>
+      <p>
+        The palette also has <em>Compute sensor model</em>, <em>Take a snapshot</em>, <em>Relink offline
+        images</em>, <em>Project report</em>, <em>Close project</em>, the theme switch, <em>Show
+        introduction</em>, <em>Settings</em> and <em>Change name</em>.
+      </p>
+    </section>
+
+    <section class="doc" id="saving" data-group="Getting started" data-title="Saving, snapshots and recovery">
+      <div class="doc__group">Getting started</div>
+      <h2>Saving, snapshots and recovery</h2>
+      <p>
+        There is no Save button, because there is nothing to forget. <strong>Every edit is written to
+        the project's journal on disk the moment you make it</strong>, before Fiducia acknowledges it. If
+        the computer crashes or loses power, the journal is replayed the next time you open the project
+        and nothing is lost.
+      </p>
+      <ul>
+        <li><strong>Snapshots</strong> are named restore points. Take one from the title bar, the palette, or <em>Project → History → Snapshot now</em> before any change you may want to undo in bulk.</li>
+        <li><strong>Restoring</strong> a snapshot saves the current state as a snapshot first, so a restore can always be undone.</li>
+        <li><strong>Removable drives.</strong> If the drive holding the project disappears mid-edit (a USB stick pulled out, a network share dropping), Fiducia refuses the edit, tells you which drive went, and carries on saving by itself when it comes back.</li>
+        <li><strong>Moved photographs.</strong> Image paths are stored relative to the project. If photos are moved, the Images step marks them <em>offline</em>; <em>Search known folders</em> finds them again, or <em>Locate…</em> points to one by hand.</li>
+        <li><strong>Handing a project on.</strong> <em>Project → Handover → Archive project…</em> writes a zip with the project, its journal and snapshots. Generated outputs are left out, and image links stay valid on another computer.</li>
+      </ul>
+    </section>
+
+    <!-- ================================================================ THE STEPS -->
+
+    <section class="doc" id="step-project" data-group="The steps" data-title="Project">
+      <div class="doc__group">The steps · 1</div>
+      <h2>Project</h2>
+      <p>The settings that apply to the whole block: what kind of imagery it is, where it is on the earth, and the output grid.</p>
+      <h3>Identity</h3>
+      <p>
+        <strong>Name</strong>, <strong>Author</strong> and <strong>Description</strong> are stored in the
+        project file. Orthophotos record the name of whoever generates them, which you set once under
+        <em>Settings → Profile</em>.
+      </p>
+      <h3>Processing</h3>
+      <p>What the project is for. It sets the math model and which steps lead the rail; changing it keeps everything already done.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Option</th><th>Use it for</th></tr></thead>
+        <tbody>
+          <tr><td>Drone photos</td><td>GPS-tagged photos from a drone; see <a href="#drone">Drone photos</a></td></tr>
+          <tr><td>Scanned film photos</td><td>Film frames with fiducial marks and a calibration certificate</td></tr>
+          <tr><td>Satellite scenes</td><td>Scenes delivered with RPCs, refined with control (see <a href="#scripting">Scripting the engine</a>)</td></tr>
+          <tr><td>Everything</td><td>Every step in the classic order, with a free choice of math model, including digital frame cameras described by pixel size and dimensions</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Projection</h3>
+      <ul>
+        <li><strong>Output projection</strong> is the coordinate system of every product. Pick from the list or type an EPSG code. Fiducia shows the EPSG code, datum and units underneath, and writes the full definition into every output, so GIS software places it correctly even for systems without an official code.</li>
+        <li><strong>GCP projection</strong> is the system your control is surveyed in. It follows the output projection automatically; set it separately only if your survey is in a different system. <em>match output</em> puts it back.</li>
+        <li><strong>Pixel spacing X and Y</strong> set the output ground resolution in metres (0.5 m by default).</li>
+        <li><strong>Elevation reference</strong> is mean sea level or the ellipsoid, to match your control heights and DEM.</li>
+      </ul>
+      <p>See <a href="#crs">Coordinate systems</a> for the South African Lo zones.</p>
+      <h3>History and Handover</h3>
+      <p>Snapshots and the project archive, described in <a href="#saving">Saving, snapshots and recovery</a>.</p>
+    </section>
+
+    <section class="doc" id="step-camera" data-group="The steps" data-title="Camera">
+      <div class="doc__group">The steps · 2</div>
+      <h2>Camera</h2>
+      <p>The interior orientation: how the camera turns a direction into a point on the image.</p>
+      <h3>Reading a calibration certificate</h3>
+      <p>
+        <strong>Calibration certificate → Read…</strong> takes a PDF, PNG or JPEG of the certificate and
+        extracts the focal length, principal point, fiducial positions and distortion table. Every value
+        is shown next to the text it came from, so you can check it before choosing to apply it, and the
+        distortion table is fitted straight away so a misread figure stands out.
+      </p>
+      <ul>
+        <li><strong>Offline</strong> (the default): Windows' built-in text recognition and a set of rules for certificate layouts. Nothing leaves your computer.</li>
+        <li><strong>Claude or ChatGPT</strong>, with your own API key, for difficult scans. Only the certificate you choose is sent. Set this up under <em>Reading service</em> (<em>Settings → Certificate reading</em>); keys are encrypted by Windows and kept on your computer.</li>
+      </ul>
+      <h3>Entering it by hand</h3>
+      <ul>
+        <li><strong>Name</strong> and <strong>Focal length</strong> in millimetres.</li>
+        <li><strong>Principal point offset.</strong> Enter <em>PPO</em> x and y directly, or switch to <em>PPA + PPS</em>, type both from the certificate and choose <em>Set PPO from PPA + PPS</em>. Fiducia does the addition for you.</li>
+        <li><strong>Radial lens distortion</strong>, Δr = K₀r + K₁r³ + K₂r⁵ + K₃r⁷. Type K₀ to K₃, or choose <em>From table…</em>, enter the certificate's radius (mm) and distortion (µm) pairs and <em>Fit K₀–K₃</em>. The fit RMS and worst residual are shown: under 1 µm is good, over 3 µm usually means a typing error.</li>
+      </ul>
+      <h3>Film cameras</h3>
+      <ul>
+        <li><strong>Calibrated fiducials</strong>: the positions of up to eight marks in millimetres, with their layout (<em>Edge and corner</em>, <em>Corner only</em> or <em>Edge only</em>). At least four are needed.</li>
+        <li><strong>Transformation</strong> from scan pixels to film millimetres: <em>Affine</em> (six parameters, absorbs a scanner's differing x and y scale and skew; needs four marks), <em>Conformal</em> (four parameters, keeps the shape) or <em>Automatic</em> (affine whenever four or more marks are measured).</li>
+        <li><strong>Image scale 1 :</strong> the nominal photo scale, used to estimate the starting flying height.</li>
+      </ul>
+      <h3>Digital cameras</h3>
+      <p><strong>Pixel pitch</strong> (mm), <strong>Columns</strong> and <strong>Rows</strong>, and the principal point offset as <strong>Long-track</strong> (along the flight direction, not the long side of the image) and <strong>Cross-track</strong>.</p>
+      <h3>Camera library and corrections</h3>
+      <ul>
+        <li><strong>Save to library… / Load from library…</strong> keeps calibrated cameras in a JSON file for reuse in later projects.</li>
+        <li><strong>Atmospheric refraction</strong> and <strong>Earth curvature</strong>. At the frame corners curvature displaces points by about 13 µm at 1,500 m and 36 µm at 4,000 m; refraction is about a third of that. Both are applied in the adjustment and orthorectification (not yet in stereo DEM extraction or automatic control).</li>
+      </ul>
+    </section>
+
+    <section class="doc" id="step-images" data-group="The steps" data-title="Images">
+      <div class="doc__group">The steps · 3</div>
+      <h2>Images</h2>
+      <figure class="shot"><img src="images/images.jpg" alt="The Images step with six photographs listed and one open on the canvas" loading="lazy"><figcaption>Imagery, with the selected photo on the canvas</figcaption></figure>
+      <h3>Adding photographs</h3>
+      <p>
+        <strong>Add…</strong> takes GeoTIFF, JPEG and PCIDSK (<code>.pix</code>) files. Each row shows
+        the size and bands, the interior orientation residual for film (a green chip under 2 px), and a
+        <em>solved</em> chip once the model has placed it. <strong>⧉</strong> opens a photo in its own
+        window (<em>Pop out all</em> does every photo at once) and <strong>✕</strong> removes it with its
+        measurements.
+      </p>
+      <h3>Interior orientation (film)</h3>
+      <ol>
+        <li>Click a mark in the grid (TL, TM, TR …), then click that fiducial on the photo. The fit and each mark's residual update after every click.</li>
+        <li>Once one photo has three or more marks, <strong>Detect all</strong> finds them on the others, using your measured photo as the template.</li>
+        <li>Check the proposals and choose <strong>Apply</strong>; only photos with at least three confident marks are applied.</li>
+      </ol>
+      <p>An RMS under 2 px is green. <em>Clear all marks</em> starts the photo again.</p>
+      <h3>Clip region</h3>
+      <p>
+        <strong>Define…</strong>, then click two opposite corners on the photo, to keep frame edges, data
+        strips or the aircraft out of the products. It only limits the output; points outside it stay in
+        the adjustment.
+      </p>
+    </section>
+
+    <section class="doc" id="step-control" data-group="The steps" data-title="Control">
+      <div class="doc__group">The steps · 4</div>
+      <h2>Control</h2>
+      <figure class="shot"><img src="images/control.jpg" alt="The Control step with ground control points marked on a photograph" loading="lazy"><figcaption>Ground control on the photograph, with live residuals in the panel</figcaption></figure>
+      <h3>Reference DEM</h3>
+      <p><strong>Choose a DEM…</strong> (GeoTIFF, <code>.pix</code>, <code>.img</code> or <code>.asc</code>). It supplies control heights and removes terrain displacement in the orthophotos.</p>
+      <h3>Measuring ground control by hand</h3>
+      <ol>
+        <li>Select a photo, then choose <strong>Measure…</strong>. While you aim, a magnifier shows the photo at 1:1 with a crosshair on the pixel the click will record.</li>
+        <li>Click the feature. The pending point is drawn on the photo before you accept it.</li>
+        <li>Type its coordinates. The boxes are named for your projection (easting and northing, or westing and southing on the Lo zones). A pair or triple pasted into one box is split across the boxes for you, and decimal commas are understood.</li>
+        <li>Use <strong>Extract Z from DEM</strong> for the height if you have no surveyed one, tick <strong>Check point</strong> to keep it out of the solution, then <strong>Accept</strong>.</li>
+      </ol>
+      <p>
+        If the two horizontal coordinates look reversed (for example the point only falls inside the DEM
+        when they are swapped), Fiducia says so and offers <strong>Swap</strong> or <em>Keep as entered</em>.
+      </p>
+      <p>
+        Each point's row has <strong>+ray</strong> (measure it on the current photo as well),
+        <strong>⊘ / ↺</strong> (make it a check point, or use it again) and <strong>✕</strong>. Chips show
+        how many photos it is measured on and its residual on the current photo.
+      </p>
+      <div class="note">
+        <b>Live residuals.</b> From the fourth control point on a photo, every change re-solves that photo
+        and shows how well the control agrees, naming any point that disagrees with the rest. A typing
+        error shows up while the point is still fresh in your mind, not an hour later as a bad adjustment.
+      </div>
+      <h3>Importing a survey file</h3>
+      <p>
+        <strong>Import…</strong> reads CSV and text tables (<code>.csv</code>, <code>.txt</code>,
+        <code>.dat</code>, <code>.asc</code>). Columns are recognised by the names surveyors actually use
+        (point, station, beacon; easting, northing; elevation, height; precision and so on), and you see how
+        many points were read and which rows could not be before anything is imported. A precision column
+        sets that point's weight. <strong>Export…</strong> writes the control to CSV, with residuals once
+        the block is solved.
+      </p>
+      <h3>Automatic control</h3>
+      <p>
+        Choose a <strong>geocoded reference image</strong> (an existing orthophoto or orthomosaic; select
+        every tile and they are searched as one), then <strong>Find control</strong>. Each photo is placed
+        on the reference automatically, patches are rectified and matched, and proposals are listed with
+        their score and shift. Untick any you don't trust and <strong>Accept</strong> the rest.
+      </p>
+      <ul>
+        <li><strong>Options</strong>: target count per photo (20), search radius in metres (90) and minimum score (0.55).</li>
+        <li>After computing the model, run it again for more precise points; they replace the first pass.</li>
+        <li><strong>Measure … control points on all photos</strong> appears when automatic points are only on one photo. Measured on every photo that sees them, they tie the photos together and check height as well as position.</li>
+      </ul>
+      <h3>Tie points</h3>
+      <p>
+        <strong>Collect tie points</strong> runs in the background across all overlapping photos.
+        Candidates are found on reduced images, checked with a RANSAC two-view geometry test, then measured
+        again at full resolution. A feature seen on three or more photos becomes one multi-ray point.
+      </p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Option</th><th>Choices</th></tr></thead>
+        <tbody>
+          <tr><td>Matching method</td><td><em>Normalised cross-correlation</em> for imagery flown in one session, or <em>Feature-based (AKAZE)</em>, which copes with scale and rotation for mixed orientations</td></tr>
+          <tr><td>Target per photo pair</td><td>60 by default</td></tr>
+          <tr><td>Min score</td><td>0.75 by default</td></tr>
+          <tr><td>Full-resolution refinement</td><td><em>Least-squares matching</em> (about a tenth of a pixel, with a precision for every point), <em>Correlation only</em> (about a third of a pixel) or <em>None</em> (fastest)</td></tr>
+          <tr><td>Replace earlier automatic tie points</td><td>On by default</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="doc" id="step-model" data-group="The steps" data-title="Model (bundle adjustment)">
+      <div class="doc__group">The steps · 5</div>
+      <h2>Model</h2>
+      <p>The bundle adjustment: every photo's position and attitude, and every tie point, solved together. With one photo it is a space resection.</p>
+      <h3>Readiness</h3>
+      <p>
+        Before you run anything, Fiducia lists exactly what is missing (blockers) and what looks doubtful
+        (warnings). Where it can, it offers a one-click fix, for example a camera described in landscape for
+        portrait images. When everything is in place the chip says <em>ready</em> and <strong>Compute
+        model</strong> becomes available.
+      </p>
+      <h3>Adjustment settings</h3>
+      <p>A-priori standard deviations. With realistic values, sigma-0 comes out near 1.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Setting</th><th>Default</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Control, horizontal</td><td>0.5 m</td><td>A precision column in the survey file overrides it per point</td></tr>
+          <tr><td>Control, vertical</td><td>as horizontal</td><td>Heights read from a DEM are usually poorer than positions</td></tr>
+          <tr><td>Control measurements</td><td>0.5 px</td><td>A point clicked on the photo</td></tr>
+          <tr><td>Tie point measurements</td><td>0.3 px</td><td>Least-squares matching reaches 0.1 to 0.3 px</td></tr>
+          <tr><td>Self-calibration</td><td>None</td><td>See below</td></tr>
+          <tr><td>Robust estimation</td><td>On</td><td>Limits the pull of gross errors so they stand out; statistics are those of ordinary least squares at the solution</td></tr>
+          <tr><td>Remove tie points that fail data snooping</td><td>On</td><td>Automatic tie points with a standardised residual over 3.29 are removed and the block solved again. Control is only ever flagged</td></tr>
+        </tbody>
+      </table></div>
+      <p>
+        <strong>Self-calibration</strong> estimates corrections to the camera alongside the orientations:
+        <em>Interior</em> (f, x₀, y₀), <em>Interior and radial</em> (+ k1, k2), <em>Brown</em> (+ k3, p1, p2)
+        or <em>Brown and affinity</em> (+ b1, b2). <em>Brown, focal length held</em> is the drone default:
+        everything but the focal length, which a nadir block without control cannot separate from flying
+        height. Drone blocks also allow the looser limits a consumer lens needs. Self-calibration needs strong geometry: many well-spread tie points,
+        control in height and ideally several strips. On a single short strip, leave it off.
+      </p>
+      <p>
+        If photos have imported camera positions, you can <strong>use them as observations</strong> with
+        their own precisions, and <strong>solve a constant GNSS shift</strong> for a datum or antenna offset
+        common to the whole flight (this needs some ground control).
+      </p>
+      <h3>Reading the solution</h3>
+      <figure class="shot"><img src="images/model.jpg" alt="The Model step showing the converged solution and residual vectors on the photograph" loading="lazy"><figcaption>A converged solution, with residual vectors drawn on the photo</figcaption></figure>
+      <ul>
+        <li><strong>Sigma-0</strong>: the variance factor. Near 1 means the stated precisions were right; well above 1 means the data is worse than you said (or something is wrong).</li>
+        <li><strong>Image RMS</strong> in µm, <strong>Control RMS</strong> and <strong>Check RMS</strong> in metres.</li>
+        <li><strong>Accuracy</strong> (when there are check points): RMSE in X, Y and Z, the mean error per axis (a mean far from zero is a systematic offset), RMSE horizontal and vertical as in the ASPRS Positional Accuracy Standards (2023), and 95% confidence as in the NSSDA (1.7308 × RMSE<sub>r</sub>, 1.96 × RMSE<sub>z</sub>). The standards recommend at least 20 check points.</li>
+        <li><strong>Self-calibration</strong>: each estimated parameter with its standard deviation, marked <em>significant</em> only if it is larger than three of them.</li>
+        <li><strong>Precision</strong>: one standard deviation of each photo's position (± XY, ± Z), attitude (± angle, in arc seconds) and the ground uncertainty at its corners, which the orthophoto inherits. Corners over 5 px are highlighted and point to too little or badly spread control.</li>
+        <li><strong>Probable blunders</strong>: points failing data snooping, worst first, with their standardised residual and a plain explanation. For a control point, <strong>Exclude and re-solve</strong> turns it into a check point and solves again.</li>
+        <li><strong>Residuals</strong>: a sortable table in ground units or pixels, for all points or only control, check or tie points. Values over 2 m or 1 px are highlighted. Hover a row to find the point on the photo.</li>
+      </ul>
+    </section>
+
+    <section class="doc" id="step-ortho" data-group="The steps" data-title="Ortho">
+      <div class="doc__group">The steps · 6</div>
+      <h2>Ortho</h2>
+      <figure class="shot"><img src="images/ortho.jpg" alt="An orthophoto open on the canvas" loading="lazy"><figcaption>A generated orthophoto, open on the canvas</figcaption></figure>
+      <p>
+        Every photo with a solved orientation is rectified onto the reference DEM and one shared pixel
+        grid, across every processor core. Tick the photos to process and choose <strong>Generate</strong>.
+      </p>
+      <ul>
+        <li><strong>Pixel X / Y</strong>: the output resolution (the same as the project's pixel spacing).</li>
+        <li><strong>Resampling</strong>: <em>Nearest neighbour</em> keeps original values (use it for classified data), <em>Bilinear</em> suits most photography, <em>Cubic</em> is sharper but slower and can overshoot at hard edges.</li>
+        <li><strong>Format</strong>: GeoTIFF, Cloud-Optimised GeoTIFF, PCIDSK (<code>.pix</code>), ERDAS Imagine (<code>.img</code>) or lossless JPEG 2000. Every format keeps the coordinate system and overviews.</li>
+        <li><strong>Compression</strong>: Deflate or LZW (lossless), JPEG (lossy, several times smaller, with a quality slider) or none. With JPEG the background is stored as a transparency mask.</li>
+        <li><strong>Background value</strong>: written outside the photograph and recorded as NoData.</li>
+        <li><strong>Keep image values off the background</strong>: moves image pixels that happen to equal the background one step away, so dark water and shadow don't show as holes in GIS software.</li>
+        <li><strong>Leave out ground each photo can't see</strong>: marks the ground hidden behind trees and buildings, so the mosaic takes it from a photo that sees it (see <a href="#drone-ortho">True orthophotos</a>). It needs a surface with trees and buildings in it; on by default for a drone block's own surface, off for a bare-earth DEM.</li>
+      </ul>
+      <p>
+        The output size and approximate file size are shown before you start. Without a DEM, Fiducia warns
+        that terrain displacement won't be corrected. Generated orthos are listed with <strong>View</strong>
+        (open on the canvas), <strong>⧉</strong> (open in its own window) and <strong>↗</strong> (show in
+        folder).
+      </p>
+    </section>
+
+    <section class="doc" id="step-mosaic" data-group="The steps" data-title="Mosaic">
+      <div class="doc__group">The steps · 7</div>
+      <h2>Mosaic</h2>
+      <figure class="shot"><img src="images/mosaic.jpg" alt="The live mosaic preview with seamlines shown" loading="lazy"><figcaption>The live preview, with <em>Seams</em> on</figcaption></figure>
+      <p>
+        With two or more orthos, a preview appears on the canvas and updates about a second after each
+        change, so you can compare settings directly. <strong>Seams</strong> colours each part by the photo
+        it comes from.
+      </p>
+      <h3>Tone</h3>
+      <ul>
+        <li><strong>Normalisation</strong> evens out brightness within each photo first: <em>Across image</em> fits a smooth trend surface for the darkening towards the edges, and <em>Hotspot</em> also follows broader patches such as the bright area opposite the sun.</li>
+        <li><strong>Colour balance</strong> makes overlapping photos agree: <em>Offset</em> matches their levels, <em>Gain and offset</em> their contrast too, and <em>Histogram matching</em> maps each photo's whole distribution onto the ones before it.</li>
+        <li><strong>Reference image</strong> anchors the balancing. <em>Automatic</em> picks the most central photo; avoid frames with saturated water or cloud.</li>
+      </ul>
+      <h3>Cutlines</h3>
+      <ul>
+        <li><strong>Least difference between images</strong> routes seams along roads and open ground and around buildings and trees, whose lean differs between photos.</li>
+        <li><strong>Distance from image edge</strong>, <strong>Nearest centre</strong> and <strong>Image order</strong> are simpler geometric choices.</li>
+        <li><strong>Blend width</strong> (0 to 200 px, 40 by default) softens seams; too wide blurs detail across them.</li>
+      </ul>
+      <p>Choose <strong>Generate mosaic</strong> for the full-resolution result.</p>
+    </section>
+
+    <section class="doc" id="step-dem" data-group="The steps" data-title="Stereo DEM">
+      <div class="doc__group">The steps · 8</div>
+      <h2>Stereo DEM</h2>
+      <figure class="shot"><img src="images/dem.jpg" alt="A stereo pair shown side by side on the canvas" loading="lazy"><figcaption>A stereo pair side by side, ready to extract</figcaption></figure>
+      <p>
+        Fiducia lists every overlapping pair with its <strong>base-to-height ratio</strong> (B/H) and a plain
+        verdict, because B/H predicts DEM quality better than any other single number. Good pairs are ticked
+        for you. Click a pair to show it side by side; <strong>Line up</strong> moves one view to the ground
+        at the centre of the other, at the same scale.
+      </p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Setting</th><th>Choices</th></tr></thead>
+        <tbody>
+          <tr><td>Method</td><td><em>Semi-global matching</em> (smooth along several paths, better on low texture) or <em>Normalised cross-correlation</em> (faster, noisier in shadow and over water)</td></tr>
+          <tr><td>Detail</td><td>Low (2,000 px), Medium (3,000), High (4,000) or Extra high (8,000), the long side the photos are matched at. Height precision follows the matched pixel size; extra high takes about ten times as long as high</td></tr>
+          <tr><td>Terrain</td><td>Flat, Rolling or Mountainous</td></tr>
+          <tr><td>Smoothing</td><td>None, Low, Medium or High</td></tr>
+          <tr><td>Pixel sampling</td><td>1 to 16 (4 by default)</td></tr>
+          <tr><td>Wallis filter</td><td>Recovers texture in shadow and over water, at the cost of some noise elsewhere</td></tr>
+          <tr><td>Min / max elevation</td><td>Automatic, or limits you set</td></tr>
+        </tbody>
+      </table></div>
+      <p>
+        <strong>Extract</strong> resamples each pair to epipolar geometry, matches it, triangulates every
+        match in 3D from the adjusted cameras, then levels and merges the pair surfaces into one. Results are
+        listed with their resolution and coverage, the merged surface first.
+      </p>
+      <p>
+        In a drone project this step is called <strong>Surface</strong> and leads with <strong>Build dense
+        surface</strong>, which does all of this for the whole block in one go; see
+        <a href="#drone-surface">The dense surface</a>. The pair list stays below it for working pair by pair.
+      </p>
+    </section>
+
+    <section class="doc" id="step-terrain" data-group="The steps" data-title="Terrain">
+      <div class="doc__group">The steps · 9</div>
+      <h2>Terrain</h2>
+      <figure class="shot"><img src="images/terrain.jpg" alt="A shaded relief of the extracted surface open on the canvas" loading="lazy"><figcaption>Shaded relief of the merged stereo surface</figcaption></figure>
+      <p>
+        Everything that happens to an elevation model after it is made. Choose a <strong>Surface</strong>
+        (the reference DEM, a stereo or merged DEM, or a LiDAR raster) to see its elevation range, coverage,
+        cell size and void cells, and <strong>Show on the canvas</strong>.
+      </p>
+      <ul>
+        <li><strong>Fill voids</strong> fills gaps next to measured ground; large voids such as open water are left alone. <strong>Smooth</strong> is a median filter that removes spikes and keeps breaklines.</li>
+        <li><strong>Merge surfaces</strong> joins two or more surfaces with feathered edges.</li>
+        <li><strong>Shaded relief</strong> with your sun azimuth (315°), altitude (45°) and Z factor. A low sun reveals matching blunders that a colour ramp hides.</li>
+        <li><strong>Contours</strong> at your interval with an index contour every n lines, written as GeoJSON. The approximate number of contours is shown before you run it.</li>
+        <li><strong>Filter to terrain model</strong> removes vegetation and buildings with a progressive morphological filter. Check the result on a hillshade; flat roofs and terraces can be misclassified.</li>
+        <li><strong>Volume</strong> against a base surface: cut, fill and net volume in m³, and the area compared.</li>
+      </ul>
+      <p>
+        Filled, smoothed and merged surfaces join the Surface list. Hillshades and contours are listed under
+        <strong>Generated</strong>, with <strong>View</strong> (hillshades open on the canvas),
+        <strong>⧉</strong> and <strong>↗</strong> (show in folder).
+      </p>
+    </section>
+
+    <section class="doc" id="step-lidar" data-group="The steps" data-title="LiDAR">
+      <div class="doc__group">The steps · 10</div>
+      <h2>LiDAR</h2>
+      <p>
+        <strong>Open…</strong> a LAS or LAZ point cloud to see its point count, average spacing, elevation
+        range and LAS version. If no coordinate system is declared, the project's output projection is assumed.
+      </p>
+      <ul>
+        <li><strong>Classification filter.</strong> Every class is listed with its share of the points before you choose, because "my DTM has holes" is almost always "ground was only a few percent of the returns". Ground (class 2) alone makes a terrain model; add vegetation and buildings for a surface model.</li>
+        <li><strong>Rasterising</strong>: cell size (1 m by default; the average spacing is shown beside it) and returns (all, first, last or single only). Options: cell assignment (inverse distance, mean, minimum or maximum) and void fill (natural neighbour, linear, nearest or none).</li>
+        <li><strong>Validate</strong> compares a result with a reference surface: RMSE, R², mean error, sample count and the regression line.</li>
+      </ul>
+      <p>LiDAR surfaces appear in the Terrain step for repair, hillshades, contours and volumes.</p>
+    </section>
+
+    <section class="doc" id="step-reports" data-group="The steps" data-title="Reports">
+      <div class="doc__group">The steps · 11</div>
+      <h2>Reports</h2>
+      <ul>
+        <li><strong>Layout.</strong> <em>Standard</em> is sectioned, with model statistics and blunder detection. <em>Classic text layout</em> reproduces the established fixed-column format, column for column, so existing marking templates and parsing scripts keep working.</li>
+        <li><strong>Project report.</strong> Choose the sections (all ticked by default: project and math model, camera calibration, projection, images, fiducial measurements, exterior orientation, ground control, tie points, model statistics, outputs) and which images to include.</li>
+        <li><strong>Residual report.</strong> In ground units or pixels, for all points or only control, check or tie points. In the classic layout the DS columns are standardised residuals; values above about 3 deserve a look.</li>
+        <li><strong>Preview</strong> shows the report in the panel with <em>Copy to clipboard</em>; <strong>Save as .txt…</strong> writes it to a file.</li>
+      </ul>
+    </section>
+
+    <!-- ================================================================ REFERENCE -->
+
+    <section class="doc" id="viewer" data-group="Reference" data-title="The image viewer">
+      <div class="doc__group">Reference</div>
+      <h2>The image viewer</h2>
+      <p>The toolbar above the canvas:</p>
+      <ul>
+        <li><strong>Fit</strong> shows the whole photo; <strong>1:1</strong> shows one photo pixel on one screen pixel, the sharpest view for measuring.</li>
+        <li><strong>Rotate</strong> left or right and <strong>mirror</strong>. These change the display only, never the data.</li>
+        <li><strong>Stretch</strong>: no stretch, linear, linear 2%, 2 standard deviations, equalise or root. Also display only.</li>
+        <li><strong>Points</strong> shows measured points and marks; <strong>Residuals</strong> draws each point's residual vector once the model is solved.</li>
+        <li><strong>⧉</strong> opens the photo in its own window.</li>
+      </ul>
+      <p>
+        The strip under the canvas shows the photo's size, bands, focal length, scale, zoom and the
+        approximate flying height. Tiles are loaded from an image pyramid, so very large scans pan and zoom
+        smoothly.
+      </p>
+    </section>
+
+    <section class="doc" id="windows" data-group="Reference" data-title="Multiple monitors and outputs">
+      <div class="doc__group">Reference</div>
+      <h2>Multiple monitors and outputs</h2>
+      <p>
+        Any photo, orthophoto, mosaic or DEM can be popped out into its own window and dragged to a second
+        screen. Measuring works in every window: a point is recorded on the photo you click, whichever is
+        selected in the main window.
+      </p>
+      <p>
+        Generated outputs open on the canvas with the same pan and zoom as photos. Single-band elevation is
+        coloured by height; imagery is shown as it is, with a choice of display stretch. When a job finishes,
+        its <strong>View</strong> button in the activity bar takes you to the result.
+      </p>
+    </section>
+
+    <section class="doc" id="settings" data-group="Reference" data-title="Settings">
+      <div class="doc__group">Reference</div>
+      <h2>Settings</h2>
+      <p>Settings belong to you and this computer; project settings live in the <a href="#step-project">Project</a> step. Open them from <em>Project → Settings…</em> or the command palette.</p>
+      <ul>
+        <li><strong>Profile.</strong> Your name, shown on the start screen and recorded as the author of new projects and orthophotos.</li>
+        <li><strong>Certificate reading.</strong> Offline, Claude or ChatGPT, the model, and your API key.</li>
+        <li><strong>Measuring.</strong> The magnifier when placing control points: while you are zoomed out beyond 1:1, a round window follows the cursor at 1:1 with a crosshair on the pixel the click will record.</li>
+        <li><strong>Appearance.</strong> Dark or light. Dark is the default because a bright surround distorts how you judge tone in a photograph.</li>
+        <li><strong>General.</strong> Clear the recent projects list (no files are deleted) and show the introduction again.</li>
+      </ul>
+    </section>
+
+    <section class="doc" id="crs" data-group="Reference" data-title="Coordinate systems">
+      <div class="doc__group">Reference</div>
+      <h2>Coordinate systems</h2>
+      <p>
+        Any system with an EPSG code can be used for control, outputs and DEMs, and they can all be different;
+        Fiducia transforms between them.
+      </p>
+      <p>
+        The South African <strong>Lo zones</strong> (Gauss Conform, Lo15 to Lo33) are first-class. Older
+        packages still ship them on the Cape datum, which has been wrong for every project since the switch to
+        Hartebeesthoek94 in 1999. Here <code>ZALO19</code> <em>is</em> Hartebeesthoek94; <code>ZALO19_WGS84</code>
+        and <code>ZALO19_CAPE</code> are separate, clearly labelled entries. The zones are south-oriented, so
+        coordinates are westings and southings and are not mirrored, and the control boxes are labelled that way.
+      </p>
+    </section>
+
+    <section class="doc" id="formats" data-group="Reference" data-title="File formats">
+      <div class="doc__group">Reference</div>
+      <h2>File formats</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>What</th><th>Reads</th><th>Writes</th></tr></thead>
+        <tbody>
+          <tr><td>Photographs</td><td>GeoTIFF, JPEG, PCIDSK <code>.pix</code></td><td>(never modified)</td></tr>
+          <tr><td>Orthos and mosaics</td><td>GeoTIFF, <code>.pix</code>, <code>.img</code>, JPEG, VRT (as references)</td><td>GeoTIFF, Cloud-Optimised GeoTIFF, PCIDSK, ERDAS Imagine, JPEG 2000</td></tr>
+          <tr><td>Elevation</td><td>GeoTIFF, <code>.pix</code>, <code>.img</code>, <code>.asc</code></td><td>GeoTIFF</td></tr>
+          <tr><td>Point clouds</td><td>LAS, LAZ</td><td>(rasterised to GeoTIFF)</td></tr>
+          <tr><td>Control</td><td>CSV and text tables</td><td>CSV, GeoJSON</td></tr>
+          <tr><td>Contours</td><td></td><td>GeoJSON</td></tr>
+          <tr><td>Certificates</td><td>PDF, PNG, JPEG</td><td></td></tr>
+          <tr><td>Camera library</td><td>JSON</td><td>JSON</td></tr>
+          <tr><td>Reports</td><td></td><td>Plain text</td></tr>
+          <tr><td>Projects</td><td><code>.fidu</code> folder</td><td><code>.fidu</code> folder, zip archive</td></tr>
+        </tbody>
+      </table></div>
+      <p>
+        Inside a <code>.fidu</code> folder: <code>project.json</code> (the state), <code>journal/</code> (the
+        write-ahead log), <code>snapshots/</code>, <code>cache/</code> (overviews) and <code>outputs/</code>
+        (orthos, mosaics, DEMs).
+      </p>
+    </section>
+
+    <section class="doc" id="scripting" data-group="Reference" data-title="Scripting the engine">
+      <div class="doc__group">Reference</div>
+      <h2>Scripting the engine</h2>
+      <p>
+        Everything the interface does is a plain HTTP call to the processing engine, so blocks can be
+        processed in batches without opening a window. Running from source:
+      </p>
+      <pre><code>python engine/server.py --port 8731</code></pre>
+      <p>A few examples:</p>
+      <pre><code>curl -X POST localhost:8731/project/open -H "Content-Type: application/json" \
+     -d '{"directory": "D:/survey/Block_A.fidu"}'
+curl -X POST localhost:8731/model/compute -H "Content-Type: application/json" -d '{}'
+curl localhost:8731/jobs?activeOnly=true</code></pre>
+      <p>
+        Long operations return a job, which you poll at <code>/jobs</code>. A few things are, for now, only
+        available here and not yet in the interface:
+      </p>
+      <ul>
+        <li><strong>Flight logs.</strong> <code>/exchange/exterior/import</code> reads one GNSS/IMU orientation per photo (with omega, phi, kappa or roll, pitch, heading columns), and <code>/exchange/exterior/export</code> writes the solved orientations.</li>
+        <li><strong>Footprints.</strong> <code>/exchange/footprints</code> writes every photo's ground footprint as a GeoJSON layer.</li>
+        <li><strong>Satellite RPCs.</strong> <code>/satellite/rpc</code> reads a scene's rational polynomial coefficients and <code>/satellite/refine</code> refines them with ground control.</li>
+      </ul>
+    </section>
+
+    <!-- ================================================================ ACCURACY -->
+
+    <section class="doc" id="accuracy" data-group="Accuracy" data-title="How accuracy is stated">
+      <div class="doc__group">Accuracy</div>
+      <h2>How accuracy is stated</h2>
+      <p>
+        Accuracy comes only from <strong>independent check points</strong>. Control points are part of the
+        solution, so they measure how well it fits, not how accurate it is.
+      </p>
+      <ul>
+        <li>RMSE per axis, and horizontal and vertical, as in the <strong>ASPRS Positional Accuracy Standards for Digital Geospatial Data (2023)</strong>.</li>
+        <li>Accuracy at 95% confidence as in the <strong>NSSDA</strong>: 1.7308 × RMSE<sub>r</sub> horizontally and 1.96 × RMSE<sub>z</sub> vertically.</li>
+        <li>The mean error per axis, so a systematic offset can't hide inside an RMSE.</li>
+        <li>A check point measured on only one photo checks position at its surveyed height, not height. Fiducia says how many are like that.</li>
+        <li>With fewer than 20 check points the figures are marked as indicative, as the standards recommend.</li>
+      </ul>
+      <p>
+        Every precision Fiducia reports is a standard deviation from the adjustment's covariance, scaled by
+        sigma-0, and it has been checked against Monte Carlo simulation (below).
+      </p>
+    </section>
+
+    <section class="doc" id="testing" data-group="Accuracy" data-title="Testing and results">
+      <div class="doc__group">Accuracy</div>
+      <h2>Testing and results</h2>
+      <p>
+        Most tests build a scene whose answer is known exactly and check that Fiducia recovers it. Others
+        compare it with independent references: an established commercial package's solution of a real
+        block, a ray tracer through the standard atmosphere, and a spherical earth.
+      </p>
+      <ul>
+        <li><strong>Against a reference solution on a real block</strong>, every photo's orientation agrees within 1.2 of its standard deviations, and every tie point within 3 (median 0.12).</li>
+        <li><strong>Precisions are true.</strong> Over 150 Monte Carlo solves the actual scatter matches the reported precision to within 0.89 to 1.14, and sigma-0 averages 0.99.</li>
+        <li><strong>Self-calibration</strong> recovers camera errors injected into a block within their reported standard deviations; an uncorrected camera gave σ₀ 3.0 and 5.05 m at the check points, corrected to 1.00 and 0.31 m.</li>
+        <li><strong>Blunders</strong>: a 12-pixel tie point error is removed automatically and a 4 m control height error is flagged first and named.</li>
+        <li><strong>Least-squares matching</strong> reaches 0.04 px, with each point's reported precision within 2% of its actual error.</li>
+        <li><strong>Space resection</strong> recovers a known orientation to 10⁻¹¹ degrees at every heading.</li>
+        <li><strong>Refraction</strong> matches ray tracing through the International Standard Atmosphere to 0.02%; <strong>earth curvature</strong> on a true sphere is recovered to 0.4 mm.</li>
+        <li><strong>Orthorectification</strong> correlates 0.9946 with the true ground; <strong>mosaicking</strong> 0.9925 with no hard seams.</li>
+        <li><strong>Terrain</strong>: volume against an analytic cone exact to 0.00%, hillshade within 0.3% of analytic illumination, contours of a cone within 1.5% of the true radius, and bare-earth filtering leaves open ground within 3 mm.</li>
+        <li><strong>A synthetic drone block</strong> (consumer lens, half-pixel measurement noise, GPS only, no control) comes back with the ground's shape within 1.7 cm horizontally and 2.3 cm vertically, about one ground pixel, and the lens distortion within 0.2 px of up to 117 px. Placement is within the GPS's reach, as it must be without control.</li>
+        <li><strong>A real drone flight</strong> (18 photos, public sample data) solves to 0.73 px RMS with σ₀ 0.87, and its dense surface agrees with an independent open-source reconstruction of the same flight to a median 0.09 m (87% within 0.5 m), once the GPS offset between the two is removed.</li>
+        <li><strong>Speed</strong>: a 300-photo, 44,000-point block solves in under two minutes.</li>
+        <li><strong>Crash recovery</strong> replays unsaved edits from the journal, and pulling the project drive mid-session loses nothing.</li>
+      </ul>
+    </section>
+
+    <section class="doc" id="limits" data-group="Accuracy" data-title="Known limitations">
+      <div class="doc__group">Accuracy</div>
+      <h2>Known limitations</h2>
+      <p>Where its edges are, so you can plan around them:</p>
+      <ul>
+        <li>Refraction and earth curvature are applied in the adjustment and orthophotos, but not yet in stereo DEM extraction or automatic control.</li>
+        <li>The height scale factor of map coordinates (about 24 ppm at 150 m) is not modelled.</li>
+        <li>Dense matching of forest canopy is limited by wind moving the leaves between photos; the surface there comes from the tie points.</li>
+        <li>Drone alignment expects photos that look roughly straight down; oblique sets are not yet supported.</li>
+        <li>Stereo DEM, LiDAR and satellite RPCs have had less real-data use than the core chain from camera to mosaic.</li>
+        <li><code>.pix</code> output is lightly tested.</li>
+        <li>Windows only, and the installer isn't signed yet.</li>
+      </ul>
+    </section>
+
+    <!-- ================================================================ HELP -->
+
+    <section class="doc" id="troubleshooting" data-group="Help" data-title="Troubleshooting">
+      <div class="doc__group">Help</div>
+      <h2>Troubleshooting</h2>
+      <h3>Compute model is greyed out</h3>
+      <p>The Readiness list in the Model step names what is missing: usually fewer than three control points, a photo without enough measurements, or a camera that contradicts its images. Apply the offered fix or add what it asks for.</p>
+      <h3>Residuals of kilometres</h3>
+      <p>Almost always a coordinate pair typed or imported the wrong way round, or control in a different system from the one set as the GCP projection. Check the Project step's projections, and look for Fiducia's swap warning when you enter points.</p>
+      <h3>Sigma-0 is far from 1</h3>
+      <p>Well above 1: the measurements are worse than the a-priori precisions say, or there is a blunder. Look at <em>Probable blunders</em> first. Well below 1: the precisions are too pessimistic; tighten them in <em>Adjustment settings</em>.</p>
+      <h3>Photos say offline</h3>
+      <p>They have moved. Choose <em>Search known folders</em> in the Images step, or <em>Locate…</em> on the photo to point at it by hand.</p>
+      <h3>Fiducial detection misses marks</h3>
+      <p>Measure all the marks on one photo by hand first. <em>Detect all</em> then uses that photo as its template instead of a generated cross.</p>
+      <h3>Holes in the orthophoto over water or shadow</h3>
+      <p>Turn on <em>Keep image values off the background</em> in the Ortho options, so real black pixels are no longer mistaken for NoData.</p>
+      <h3>Seams show in the mosaic</h3>
+      <p>Try <em>Across image</em> normalisation, <em>Histogram matching</em>, <em>Least difference</em> cutlines and a wider blend, and pick a reference image without water or cloud.</p>
+      <h3>The DEM has holes</h3>
+      <p>Use <em>Fill voids</em> in the Terrain step for small gaps. For stereo, try the Wallis filter over low texture. For LiDAR, check how much of the cloud is ground before rasterising.</p>
+      <h3>Not saving</h3>
+      <p>The title bar shows <em>Not saving</em> when the project's drive refuses writes, for example a removed USB stick or a full disk. Your last edit is rolled back and named; saving resumes by itself when the drive is back.</p>
+      <h3>Engine starting or reconnecting</h3>
+      <p>The interface talks to a processing engine in the background. It reconnects on its own; if it doesn't within a minute, restart Fiducia.</p>
+    </section>
+
+    <section class="doc" id="faq" data-group="Help" data-title="Frequently asked questions">
+      <div class="doc__group">Help</div>
+      <h2>Frequently asked questions</h2>
+      <h3>Is Fiducia free?</h3>
+      <p>Yes. It's free to use and open source under the Apache 2.0 licence.</p>
+      <h3>Does it upload my data?</h3>
+      <p>No. Everything stays on your computer. The only network use is optional: reading a certificate with Claude or ChatGPT using your own key.</p>
+      <h3>Can I use my existing data?</h3>
+      <p>Yes. Photos, DEMs and orthos in GeoTIFF, <code>.pix</code> and <code>.img</code> open directly, control comes in from survey tables, and the classic report layout matches the established fixed-column format. Projects from other software aren't imported; you set the block up again in Fiducia from the same files.</p>
+      <h3>Does it do drone imagery?</h3>
+      <p>Yes. GPS-tagged drone photos are aligned, solved, given a dense surface and turned into true orthophotos and mosaics without a calibration certificate or ground control; see <a href="#drone">Drone photos</a>. Oblique sets are not yet supported.</p>
+      <h3>How do I report a problem?</h3>
+      <p>Get in touch on <a href="https://www.linkedin.com/in/joshua-metcalf-1b2184263" target="_blank" rel="noreferrer">LinkedIn</a>, or open an issue on the <a href="https://github.com/josh1234431/Fiducia-releases" target="_blank" rel="noreferrer">releases page</a>. A project archive (<em>Project → Archive project…</em>) helps me reproduce it.</p>
+    </section>
+
+    <section class="doc" id="release-notes" data-group="Help" data-title="Release notes">
+      <div class="doc__group">Help</div>
+      <h2>Release notes</h2>
+      <h3>Since 0.1.0</h3>
+      <p>In the next release.</p>
+      <ul>
+        <li>Drone photos: aligned from their own GPS, solved without ground control, dense surfaces from overlapping pairs, and true orthophotos that leave out hidden ground.</li>
+        <li>New projects ask what you are processing, and the rail shows that workflow's steps; the rest are under More tools.</li>
+        <li>A much faster bundle adjustment for large blocks: hundreds of photos in minutes.</li>
+      </ul>
+      <h3>0.1.0, 6 October 2026</h3>
+      <p>The first public build.</p>
+      <ul>
+        <li>The full chain from project to reports: interior orientation, ground control (by hand, imported or automatic), least-squares tie points, bundle adjustment, orthos, mosaics, stereo DEMs, terrain, LiDAR and reports.</li>
+        <li>Bundle adjustment with robust estimation, data snooping, self-calibration, GNSS/IMU observations and accuracy statements to ASPRS 2023 and NSSDA.</li>
+        <li>Calibration certificates read offline, or with Claude or ChatGPT using your own key.</li>
+        <li>Outputs open on the canvas or in their own windows; the mosaic preview fills the canvas.</li>
+        <li>Continuous autosave, snapshots and recovery from a removed drive.</li>
+      </ul>
+    </section>
+
+    <section class="doc" id="licence" data-group="Help" data-title="Licence">
+      <div class="doc__group">Help</div>
+      <h2>Licence</h2>
+      <p>
+        Fiducia is open source under the <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noreferrer">Apache License 2.0</a>.
+        Copyright 2026 Joshua Metcalf. You may use, modify and share it, including commercially, provided the
+        licence and notices are kept. Apache 2.0 was chosen over MIT for its explicit patent grant.
+      </p>
+      <p>
+        The photogrammetric models are my own implementation from published literature. Fiducia builds on
+        established open-source libraries, including NumPy, SciPy, OpenCV, GDAL, PROJ and rasterio, each under
+        its own licence. Product names mentioned are trademarks of their respective owners.
+      </p>
+    </section>
+  </main>
+</div>
+
+<a class="to-top" id="to-top" href="#" aria-label="Back to the top">
+  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</a>
+
+<script>
+(function () {
+  var sections = Array.prototype.map.call(document.querySelectorAll('.doc'), function (el) {
+    return { el: el, id: el.id, title: el.dataset.title, group: el.dataset.group,
+             // innerText keeps the gaps between table cells and list items
+             text: (el.innerText || el.textContent).replace(/\s+/g, ' ').trim() };
+  });
+
+  // -- contents, grouped -----------------------------------------------------
+  var toc = document.getElementById('toc');
+  var groups = {};
+  sections.forEach(function (s) {
+    if (!groups[s.group]) {
+      var g = document.createElement('div');
+      g.className = 'toc__group';
+      g.innerHTML = '<div class="toc__title"></div>';
+      g.firstChild.textContent = s.group;
+      toc.appendChild(g);
+      groups[s.group] = g;
+    }
+    var a = document.createElement('a');
+    a.href = '#' + s.id;
+    a.textContent = s.title;
+    groups[s.group].appendChild(a);
+    s.link = a;
+    var h = s.el.querySelector('h2');
+    var anchor = document.createElement('a');
+    anchor.className = 'anchor'; anchor.href = '#' + s.id; anchor.textContent = '#';
+    anchor.setAttribute('aria-label', 'Link to ' + s.title);
+    h.appendChild(anchor);
+  });
+
+  // The section being read is marked in the contents.
+  if ('IntersectionObserver' in window) {
+    var visible = {};
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+      var current = sections.find(function (s) { return visible[s.id]; });
+      sections.forEach(function (s) { s.link.classList.toggle('on', s === current); });
+    }, { rootMargin: '-80px 0px -65% 0px' });
+    sections.forEach(function (s) { spy.observe(s.el); });
+  }
+
+  // -- search -----------------------------------------------------------------
+  var input = document.getElementById('q');
+  var results = document.getElementById('results');
+  var count = document.getElementById('count');
+  var tocWrap = document.getElementById('toc-wrap');
+  // On a phone the contents start folded, so the guide itself is on the first screen.
+  if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) tocWrap.open = false;
+  var chosen = -1;
+
+  function escapeHtml(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function snippet(text, terms) {
+    var lower = text.toLowerCase(), at = -1;
+    terms.forEach(function (t) { var i = lower.indexOf(t); if (i >= 0 && (at < 0 || i < at)) at = i; });
+    var start = Math.max(0, at - 60), end = Math.min(text.length, at + 120);
+    var piece = (start ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+    var html = escapeHtml(piece);
+    terms.forEach(function (t) {
+      html = html.replace(new RegExp('(' + escapeRe(escapeHtml(t)) + ')', 'gi'), '<mark>$1</mark>');
+    });
+    return html;
+  }
+
+  function search(query) {
+    var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    clearMarks();
+    if (!terms.length) {
+      results.hidden = true; tocWrap.hidden = false; count.textContent = '';
+      return;
+    }
+    var found = sections.map(function (s) {
+      var lower = s.text.toLowerCase(), title = s.title.toLowerCase(), score = 0;
+      for (var i = 0; i < terms.length; i++) {
+        var hits = lower.split(terms[i]).length - 1;
+        if (!hits) return null;
+        score += hits + (title.indexOf(terms[i]) >= 0 ? 20 : 0);
+      }
+      return { s: s, score: score };
+    }).filter(Boolean).sort(function (a, b) { return b.score - a.score; });
+
+    results.innerHTML = '';
+    found.forEach(function (f) {
+      var a = document.createElement('a');
+      a.className = 'result'; a.href = '#' + f.s.id;
+      a.innerHTML = '<div class="result__group"></div><div class="result__title"></div><div class="result__snippet"></div>';
+      a.children[0].textContent = f.s.group;
+      a.children[1].textContent = f.s.title;
+      a.children[2].innerHTML = snippet(f.s.text, terms);
+      a.addEventListener('click', function (e) { e.preventDefault(); open(f.s, terms); });
+      results.appendChild(a);
+    });
+    if (!found.length) results.innerHTML = '<div class="results__empty">Nothing matches that. Try a different word.</div>';
+    results.hidden = false; tocWrap.hidden = true; chosen = -1;
+    count.textContent = found.length ? found.length + (found.length === 1 ? ' section' : ' sections') : '';
+  }
+
+  // Highlight the words in the section you jump to.
+  function clearMarks() {
+    document.querySelectorAll('mark.hit').forEach(function (m) {
+      m.replaceWith(document.createTextNode(m.textContent));
+    });
+    document.querySelectorAll('.doc').forEach(function (d) { d.normalize(); });
+  }
+  function markIn(el, terms) {
+    var re = new RegExp('(' + terms.map(escapeRe).join('|') + ')', 'gi');
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        return n.parentNode.closest('.anchor, script') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes = [];
+    while (walker.nextNode()) if (re.test(walker.currentNode.nodeValue)) nodes.push(walker.currentNode);
+    nodes.forEach(function (node) {
+      var frag = document.createDocumentFragment();
+      node.nodeValue.split(re).forEach(function (part, i) {
+        if (i % 2) { var m = document.createElement('mark'); m.className = 'hit'; m.textContent = part; frag.appendChild(m); }
+        else if (part) frag.appendChild(document.createTextNode(part));
+      });
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
+  function open(section, terms) {
+    clearMarks();
+    if (terms && terms.length) markIn(section.el, terms);
+    try { history.replaceState(null, '', '#' + section.id); } catch (e) { /* file:// */ }
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // The first highlighted word if there is one, so the match is on screen.
+    var first = section.el.querySelector('mark.hit');
+    (first && first.closest('p, li, td, h2, h3') || section.el)
+      .scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: first ? 'center' : 'start' });
+    section.el.classList.remove('flash'); void section.el.offsetWidth; section.el.classList.add('flash');
+  }
+
+  input.addEventListener('input', function () { search(input.value); });
+  input.addEventListener('keydown', function (e) {
+    var items = results.querySelectorAll('.result');
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!items.length) return;
+      e.preventDefault();
+      chosen = (chosen + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items.forEach(function (it, i) { it.classList.toggle('on', i === chosen); });
+      items[chosen].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      var target = items[chosen >= 0 ? chosen : 0];
+      if (target) { e.preventDefault(); target.click(); }
+    } else if (e.key === 'Escape') {
+      input.value = ''; search('');
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    var typing = /INPUT|TEXTAREA/.test(document.activeElement.tagName);
+    if ((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
+      e.preventDefault(); input.focus(); input.select();
+    }
+  });
+
+  // A search link from elsewhere: docs.html?q=tie+points
+  try {
+    var q = new URLSearchParams(location.search).get('q');
+    if (q) { input.value = q; search(q); }
+  } catch (e) { /* old browser */ }
+
+  var toTop = document.getElementById('to-top');
+  window.addEventListener('scroll', function () { toTop.classList.toggle('on', window.scrollY > 900); }, { passive: true });
+})();
+</script>
+<script src="theme.js"></script>
+</body>
+</html>

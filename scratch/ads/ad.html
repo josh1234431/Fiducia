@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fiducia — multi-monitor adverts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #eef2f0;
+    --ink-soft: #b9c3bf;
+    --ink-muted: #85918c;
+    --accent: #35b79e;
+    --accent-bright: #5fd6bd;
+    --room-top: #0e1413;
+    --room-bottom: #050807;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--room-bottom);
+    font-family: 'Manrope', 'Segoe UI', sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The room: dark, with the monitors doing the lighting. */
+  .scene {
+    position: relative; width: 100%; height: 100%;
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 58%, rgba(53, 183, 158, 0.16), transparent 70%),
+      radial-gradient(ellipse 120% 80% at 50% 0%, #17201e 0%, transparent 60%),
+      linear-gradient(180deg, var(--room-top), var(--room-bottom));
+  }
+  .desk {
+    position: absolute; left: -5%; right: -5%; bottom: 0; height: 19%;
+    background: linear-gradient(180deg, #1a1f1d 0%, #0d100f 38%, #070908 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 -30px 80px rgba(53, 183, 158, 0.07) inset;
+  }
+
+  .rig {
+    position: absolute; left: 0; right: 0;
+    display: flex; justify-content: center; align-items: flex-end;
+    perspective: 2400px; perspective-origin: 50% 40%;
+  }
+
+  .monitor { position: relative; transform-style: preserve-3d; }
+  .bezel {
+    position: relative;
+    padding: 9px 9px 12px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #1d2120, #0b0d0c);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.07),
+      0 40px 90px rgba(0, 0, 0, 0.65),
+      0 0 120px rgba(53, 183, 158, 0.10);
+  }
+  .screen {
+    position: relative; overflow: hidden; border-radius: 5px;
+    background: #0b0d0c;
+  }
+  .screen iframe {
+    position: absolute; left: 0; top: 0; border: 0;
+    transform-origin: 0 0;
+  }
+  /* A soft sheen across the glass. */
+  .screen::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(115deg, rgba(255, 255, 255, 0.07) 0%, transparent 28%, transparent 70%, rgba(255, 255, 255, 0.03) 100%);
+  }
+  .stand {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    width: 22%; height: 70px; top: 100%;
+    background: linear-gradient(180deg, #151918, #0a0c0b);
+    clip-path: polygon(38% 0, 62% 0, 70% 78%, 100% 84%, 100% 100%, 0 100%, 0 84%, 30% 78%);
+  }
+  .laptop-base {
+    position: absolute; left: -7%; right: -7%; top: 100%; height: 22px;
+    border-radius: 0 0 16px 16px;
+    background: linear-gradient(180deg, #2a302e, #111413);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  }
+  .laptop-base::before {
+    content: ''; position: absolute; left: 42%; right: 42%; top: 0; height: 6px;
+    border-radius: 0 0 8px 8px; background: #0b0d0c;
+  }
+
+  /* Callouts tie the story to the screens. */
+  .callout {
+    position: absolute; display: flex; align-items: center; gap: 10px;
+    padding: 9px 15px 9px 11px; border-radius: 999px;
+    background: rgba(12, 18, 16, 0.82);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 0 1px rgba(95, 214, 189, 0.35), 0 12px 30px rgba(0, 0, 0, 0.5);
+    font-size: 17px; font-weight: 600; color: var(--ink);
+    white-space: nowrap;
+  }
+  .callout .n {
+    display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent); color: #04110d; font-size: 14px; font-weight: 800;
+  }
+
+  .copy { position: absolute; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 17px; font-weight: 700; letter-spacing: 0.02em; color: var(--accent-bright);
+  }
+  .eyebrow::before {
+    content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 0 5px rgba(53, 183, 158, 0.22);
+  }
+  h1 {
+    margin-top: 14px;
+    font-size: 64px; line-height: 1.02; font-weight: 800; letter-spacing: -0.035em;
+  }
+  h1 em { font-style: normal; color: var(--accent-bright); }
+  .lede {
+    margin-top: 18px; max-width: 30em;
+    font-size: 21px; line-height: 1.45; font-weight: 500; color: var(--ink-soft);
+  }
+
+  .brand {
+    position: absolute; display: flex; align-items: center; gap: 12px;
+  }
+  .mark {
+    position: relative; width: 26px; height: 26px; color: var(--accent);
+  }
+  .mark::before, .mark::after { content: ''; position: absolute; background: currentColor; }
+  .mark::before { left: 50%; top: 0; bottom: 0; width: 2.5px; margin-left: -1.25px; }
+  .mark::after { top: 50%; left: 0; right: 0; height: 2.5px; margin-top: -1.25px; }
+  .mark span {
+    position: absolute; inset: 5px; border: 2.5px solid currentColor; border-radius: 50%;
+    background: var(--room-bottom);
+  }
+  .wordmark { font-size: 30px; font-weight: 800; letter-spacing: -0.06em; }
+  .tagline { font-size: 17px; font-weight: 500; color: var(--ink-muted); margin-left: 6px; }
+
+  .fine {
+    position: absolute; font-size: 12px; color: #5d6864; font-weight: 500;
+  }
+</style>
+</head>
+<body>
+<div class="scene" id="scene"><div class="desk"></div></div>
+
+<script type="module">
+  const params = new URLSearchParams(location.search)
+  const ad = params.get('ad') || '1'
+  const ENGINE = 'http://127.0.0.1:8731'
+  const scene = document.getElementById('scene')
+
+  const project = await (await fetch(`${ENGINE}/project`)).json()
+  const images = Object.fromEntries(project.state.images.map((i) => [i.name, i.id]))
+
+  /**
+   * A monitor showing the live app. The app is rendered at a real desktop
+   * resolution and scaled into the bezel, so the interface keeps its true
+   * proportions instead of being laid out for a thumbnail.
+   */
+  function monitor({ src, native, width, rotate = 0, z = 0, stand = true, laptop = false, lift = 0 }) {
+    const [nw, nh] = native
+    const scale = width / nw
+    const height = Math.round(nh * scale)
+    const el = document.createElement('div')
+    el.className = 'monitor'
+    el.style.transform = `translateY(${-lift}px) translateZ(${z}px) rotateY(${rotate}deg)`
+    el.innerHTML = `
+      <div class="bezel">
+        <div class="screen" style="width:${width}px;height:${height}px">
+          <iframe src="${src}" width="${nw}" height="${nh}" style="transform:scale(${scale})"></iframe>
+        </div>
+      </div>
+      ${stand ? '<div class="stand"></div>' : ''}
+      ${laptop ? '<div class="laptop-base"></div>' : ''}`
+    return el
+  }
+
+  function rig(bottom, gap, monitors) {
+    const el = document.createElement('div')
+    el.className = 'rig'
+    el.style.bottom = `${bottom}px`
+    el.style.gap = `${gap}px`
+    monitors.forEach((m) => el.appendChild(m))
+    scene.appendChild(el)
+    return el
+  }
+
+  function place(html, style, className = 'copy') {
+    const el = document.createElement('div')
+    el.className = className
+    el.innerHTML = html
+    Object.assign(el.style, style)
+    scene.appendChild(el)
+    return el
+  }
+
+  const brand = (style) => place(
+    `<span class="mark"><span></span></span><span class="wordmark">Fiducia</span>
+     <span class="tagline">Aerial and satellite photogrammetry.</span>`, style, 'brand')
+
+  const MAIN = '/'
+  const pop = (name) => `/#popout=${images[name]}`
+
+  // Which window shows what, and what each is doing, so the screens tell the
+  // story: one measurement armed in the main window, finished on another.
+  const setups = []   // [iframe, (store) => void]
+
+  if (ad === '1') {
+    place(`<div class="eyebrow">New in Fiducia: pop-out images</div>
+           <h1>Three screens.<br>One block.<br><em>Zero window juggling.</em></h1>`,
+          { left: '96px', top: '78px' })
+    place(`<p class="lede">Pop any photograph onto a monitor of its own. Start a measurement
+           in the main window, finish it on whichever screen shows the photo —
+           every window stays in step.</p>`, { right: '96px', top: '96px', textAlign: 'left', maxWidth: '620px' })
+    rig(150, 34, [
+      monitor({ src: pop('frame_001'), native: [1200, 1000], width: 470, rotate: 24, z: -40, lift: 4 }),
+      monitor({ src: MAIN, native: [1680, 1000], width: 760, z: 30 }),
+      monitor({ src: pop('frame_003'), native: [1200, 1000], width: 470, rotate: -24, z: -40, lift: 4 }),
+    ])
+    place('<span class="n">1</span>Panels and project in the middle', { left: '738px', top: '372px' }, 'callout')
+    place('<span class="n">2</span>Frame 001 on the left', { left: '176px', top: '430px' }, 'callout')
+    place('<span class="n">3</span>Frame 003 on the right', { right: '170px', top: '430px' }, 'callout')
+    brand({ left: '96px', bottom: '48px' })
+    place('Interface shown with a generated demonstration block.', { right: '96px', bottom: '56px' }, 'fine')
+  }
+
+  if (ad === '2') {
+    place(`<div class="eyebrow">Laptop plus one</div>
+           <h1>Panels on the laptop.<br><em>Photographs on the big screen.</em></h1>
+           <p class="lede">Tear an image off with one click. It opens on your other monitor,
+           remembers where it lives, and takes your clicks as if it never left.</p>`,
+          { left: '96px', top: '80px', maxWidth: '1100px' })
+    rig(190, 90, [
+      monitor({ src: MAIN, native: [1680, 1000], width: 540, stand: false, laptop: true, lift: 0, z: 60 }),
+      monitor({ src: pop('frame_002'), native: [1600, 1000], width: 900, z: -20 }),
+    ])
+    place('<span class="n">1</span>Measure G0004 armed on the laptop', { left: '310px', bottom: '600px' }, 'callout')
+    place('<span class="n">2</span>Click it on the big screen', { right: '330px', bottom: '690px' }, 'callout')
+    brand({ left: '96px', bottom: '48px' })
+    place('Interface shown with a generated demonstration block.', { right: '96px', bottom: '56px' }, 'fine')
+  }
+
+  if (ad === '3') {
+    place(`<div class="eyebrow">Fiducia for multi-monitor rigs</div>
+           <h1 style="font-size:88px">Spread out.</h1>
+           <p class="lede" style="font-size:22px">Pop out every photo in the block and put
+           each one where your eyes already are. The panels stay with you.</p>`,
+          { left: '72px', top: '64px', right: '72px' })
+    rig(250, 8, [
+      monitor({ src: pop('frame_001'), native: [1200, 1000], width: 285, rotate: 24, z: -30, lift: 8 }),
+      monitor({ src: MAIN, native: [1680, 1000], width: 520, z: 40 }),
+      monitor({ src: pop('frame_003'), native: [1200, 1000], width: 285, rotate: -24, z: -30, lift: 8 }),
+    ])
+    brand({ left: '72px', bottom: '44px' })
+  }
+
+  for (const frame of document.querySelectorAll('iframe')) {
+    setups.push(frame)
+  }
+
+  // Put every window into the moment the advert describes.
+  async function ready(frame) {
+    for (let i = 0; i < 120; i++) {
+      const store = frame.contentWindow?.__fiduciaStore
+      if (store?.getState().project && store.getState().connected) return store
+      await new Promise((r) => setTimeout(r, 150))
+    }
+    throw new Error('app did not load in ' + frame.src)
+  }
+
+  const armed = { label: 'Measure G0004', remote: true, onPick() {}, onCancel() {} }
+  for (const frame of setups) {
+    const store = await ready(frame)
+    if (frame.src.includes('#popout=')) {
+      store.setState({ activeStep: 'points', selectedPointId: 'G0004', pickMode: armed })
+    } else {
+      store.getState().setActiveImage(images.frame_002)
+      store.setState({ activeStep: 'points', selectedPointId: 'G0004', pickMode: armed,
+                       poppedOut: Object.values(images) })
+    }
+  }
+
+  await document.fonts.ready
+  await new Promise((r) => setTimeout(r, 3500))   // tiles
+  document.body.dataset.ready = '1'
+</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fiducia Notes</title>
+<script>try{var t=localStorage.getItem('fiducia-site-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<meta name="description" content="Dev notes from Joshua Metcalf, the creator of Fiducia: updates, what's in progress, and behind the scenes photogrammetry.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 8 48 48'%3E%3Cstyle%3Epath%7Bstroke:%2314181b%7D@media (prefers-color-scheme:dark)%7Bpath%7Bstroke:%23edf0f2%7D%7D%3C/style%3E%3Cpath d='M14 44V14h22M14 25.5h10M50 41v9h-9' fill='none' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5.2' fill='%233fc4a8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --bg: #0e1013; --panel: #171b1f; --rule: #262c31; --rule-strong: #343b41;
+  --ink: #edf0f2; --ink-soft: #b6bec4; --ink-faint: #808a91;
+  --accent: #35b79e; --accent-bright: #3fc4a8;
+  --accent-wash: rgba(63, 196, 168, 0.10); --accent-wash-strong: rgba(63, 196, 168, 0.20);
+  --fid: #e3937b;
+  --font-display: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-data: "Inter", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f4f6f7; --panel: #ffffff; --rule: #d8dde0; --rule-strong: #c3cace;
+    --ink: #14181b; --ink-soft: #3c454c; --ink-faint: #6f787f;
+    --accent: #147a68; --accent-bright: #1b9c85;
+    --accent-wash: rgba(27, 156, 133, 0.08); --accent-wash-strong: rgba(27, 156, 133, 0.16);
+    --fid: #b4482f;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f4f6f7; --panel: #ffffff; --rule: #d8dde0; --rule-strong: #c3cace;
+  --ink: #14181b; --ink-soft: #3c454c; --ink-faint: #6f787f;
+  --accent: #147a68; --accent-bright: #1b9c85;
+  --accent-wash: rgba(27, 156, 133, 0.08); --accent-wash-strong: rgba(27, 156, 133, 0.16);
+  --fid: #b4482f;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent-bright); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 3px; border-radius: 4px; }
+
+.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 84%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--rule); }
+.top__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px clamp(16px, 4vw, 40px); max-width: 1160px; margin: 0 auto; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
+.brand svg { width: 26px; height: 26px; }
+.brand small { font-weight: 600; font-size: 14px; color: var(--ink-faint); }
+.top__links { display: flex; align-items: center; gap: 20px; }
+.top__links a { color: var(--ink-soft); text-decoration: none; font-size: 14px; font-weight: 600; }
+.top__links a:hover { color: var(--ink); }
+.btn { display: inline-flex; align-items: center; padding: 7px 12px; border-radius: 8px; font: 700 13px var(--font-body); text-decoration: none; border: 1px solid var(--accent); background: var(--accent); color: #06110e !important; }
+:root[data-theme="light"] .btn { color: #fff !important; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn { color: #fff !important; } }
+@media (max-width: 640px) { .top__links a:not(.btn) { display: none; } }
+.aperture { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border-radius: 50%; border: 1px solid var(--rule-strong); background: var(--panel); color: var(--ink-soft); cursor: pointer; transition: color 160ms, border-color 160ms, transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.aperture:hover { color: var(--ink); border-color: var(--accent); }
+.aperture:active { transform: scale(0.92); }
+.aperture svg { width: 24px; height: 24px; overflow: visible; }
+.aperture__ring { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.aperture__blade { stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+.aperture__dot { fill: #3fc4a8; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+.page { max-width: 720px; margin: 0 auto; padding: clamp(40px, 7vw, 80px) clamp(16px, 4vw, 40px) 96px; }
+.eyebrow { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-data); font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-bright); }
+.eyebrow::before { content: ""; width: 14px; height: 14px; background: linear-gradient(var(--accent-bright), var(--accent-bright)) center / 14px 2px no-repeat, linear-gradient(var(--accent-bright), var(--accent-bright)) center / 2px 14px no-repeat; }
+h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.05; font-weight: 800; letter-spacing: -0.035em; margin: 12px 0 12px; }
+.lede { font-size: 18px; color: var(--ink-soft); margin: 0 0 8px; }
+
+.note { padding: 40px 0 32px; border-bottom: 1px solid var(--rule); }
+.note:last-child { border-bottom: 0; }
+.note__date { font-family: var(--font-data); font-size: 13px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.note h2 { font-size: clamp(26px, 3.4vw, 34px); line-height: 1.15; font-weight: 800; letter-spacing: -0.025em; margin: 6px 0 16px; }
+.note h2 a { color: inherit; text-decoration: none; }
+.note h2 a:hover { color: var(--accent-bright); }
+.note__body > * { margin: 0 0 16px; }
+.note__body p, .note__body li { color: var(--ink-soft); }
+.note__body strong { color: var(--ink); }
+.note__body h3 { font-size: 21px; margin: 28px 0 10px; }
+.note__body h4 { font-size: 18px; margin: 22px 0 8px; }
+.note__body ul, .note__body ol { padding-left: 22px; }
+.note__body li::marker { color: var(--accent-bright); }
+.note__body blockquote { margin-left: 0; padding: 2px 0 2px 18px; border-left: 3px solid var(--accent-bright); }
+.note__body code { font-family: var(--font-data); font-size: 0.88em; background: var(--panel); border: 1px solid var(--rule); border-radius: 5px; padding: 0 5px; }
+.note__body pre { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 14px; }
+.note__body pre code { background: none; border: 0; padding: 0; }
+.note__body img { display: block; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--rule); }
+.note.flash { animation: flash 1.6s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes flash { 0% { background: var(--accent-wash-strong); } 100% { background: transparent; } }
+.empty { color: var(--ink-faint); padding: 32px 0; }
+.foot { border-top: 1px solid var(--rule); padding: 28px clamp(16px, 4vw, 40px) 40px; font-size: 14px; color: var(--ink-faint); max-width: 1160px; margin: 0 auto; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .note.flash { animation: none; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top__row">
+    <a class="brand" href="index.html" aria-label="Fiducia home">
+      <svg viewBox="10 10 44 44" aria-hidden="true">
+        <path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="32" r="4.75" fill="#3fc4a8"/>
+      </svg>
+      Fiducia <small>Notes</small>
+    </a>
+    <nav class="top__links" aria-label="Site">
+      <a href="index.html">Home</a>
+      <a href="docs.html">Docs</a>
+      <button class="aperture" id="theme-toggle" type="button" aria-label="Switch theme">
+        <svg viewBox="-12 -12 24 24" aria-hidden="true"></svg>
+      </button>
+      <a class="btn" href="index.html#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <span class="eyebrow">Dev notes</span>
+  <h1>Notes</h1>
+  <p class="lede">Updates, what I'm working on, and the odd bit of behind the scenes photogrammetry.</p>
+  <div id="notes" aria-live="polite"><p class="empty">Loading notes…</p></div>
+</main>
+
+<footer class="foot">
+  Fiducia · created by Joshua Metcalf ·
+  <a href="https://www.linkedin.com/in/joshua-metcalf-1b2184263" target="_blank" rel="noreferrer">LinkedIn</a>
+</footer>
+
+<script src="notes.js"></script>
+<script>
+(function () {
+  var box = document.getElementById('notes');
+  window.FiduciaNotes.load().then(function (posts) {
+    if (!posts.length) { box.innerHTML = '<p class="empty">No notes yet.</p>'; return; }
+    box.innerHTML = posts.map(function (p) {
+      return '<article class="note" id="' + p.slug + '">' +
+        (p.date ? '<time class="note__date" datetime="' + p.date + '">' + p.dateText + '</time>' : '') +
+        '<h2><a href="#' + p.slug + '">' + p.titleHtml + '</a></h2>' +
+        '<div class="note__body">' + p.html + '</div></article>';
+    }).join('');
+    // Arriving from a link to one note: show it and mark it.
+    var target = location.hash && document.getElementById(location.hash.slice(1));
+    if (target) {
+      target.scrollIntoView({ block: 'start' });
+      target.classList.add('flash');
+    }
+  }).catch(function () {
+    box.innerHTML = '<p class="empty">The notes couldn\'t be loaded. Open this page through the website rather than from the file.</p>';
+  });
+})();
+</script>
+<script src="theme.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+Fiducia
+Copyright 2026 Joshua Metcalf
+
+This product includes software developed independently by the Fiducia
+authors. It is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------
+Trademarks
+--------------------------------------------------------------------------
+
+ArcGIS and ArcMap are trademarks of Esri. Windows is a trademark of Microsoft
+Corporation. Wild, Leica and RC30 are trademarks of their respective owners
+and appear only as examples of survey camera hardware.
+
+All other trademarks are the property of their respective owners.
+
+--------------------------------------------------------------------------
+Independent implementation
+--------------------------------------------------------------------------
+
+Every algorithm in this project was implemented from published photogrammetric
+literature and first principles. No part of it was derived from, ported from,
+decompiled from, or reverse engineered out of any commercial product.
+
+The mathematics is long-established public knowledge: the collinearity
+condition, space resection, bundle block adjustment, normalised cross-
+correlation, semi-global matching, and distance-transform seam selection are
+all documented in the standard photogrammetry and computer vision literature.
+
+--------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------
+
+This software depends on the following, each under its own licence:
+
+  NumPy, SciPy, rasterio, pyproj, laspy   BSD 3-Clause
+  GDAL (via rasterio)                     MIT
+  OpenCV                                  Apache License 2.0
+  Pillow                                  MIT-CMU
+  FastAPI, Starlette, uvicorn             MIT
+  anthropic, openai (Python SDKs)         MIT / Apache License 2.0
+  pypdfium2 (PDFium)                      Apache License 2.0 / BSD 3-Clause
+  pywinrt (Windows Runtime bindings)      MIT
+  Electron, React, Vite, Zustand          MIT
+  Manrope                                 SIL Open Font License 1.1
+  Inter                                   SIL Open Font License 1.1
+
+Reading of PCIDSK (.pix) files is performed by GDAL's PCIDSK driver, which is
+open source software.
