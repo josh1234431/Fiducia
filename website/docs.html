@@ -91,8 +91,10 @@ pre code { background: none; border: 0; padding: 0; }
   font: 700 13px var(--font-body); text-decoration: none; border: 1px solid var(--accent);
   background: var(--accent); color: #06110e;
 }
-:root[data-theme="light"] .btn { color: #fff; }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .btn { color: #fff; } }
+.top__links .btn, .top__links .btn:hover { color: #06110e; }
+.top__links .btn:hover { background: var(--accent-bright); border-color: var(--accent-bright); }
+:root[data-theme="light"] .top__links .btn { color: #fff; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .top__links .btn { color: #fff; } }
 @media (max-width: 640px) { .top__links a:not(.btn) { display: none; } }
 /* theme toggle: a camera aperture, stopped down for dark, open for light */
 .aperture {
