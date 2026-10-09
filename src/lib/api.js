@@ -237,6 +237,8 @@ export const api = {
   lidar: {
     inspect: (path) => request('POST', '/lidar/inspect', { path }),
     rasterize: (payload) => request('POST', '/lidar/rasterize', payload),
+    classifyGround: (payload) => request('POST', '/lidar/classify-ground', payload),
+    height: (payload) => request('POST', '/lidar/height', payload),
     compare: (derived, reference) => request('POST', '/lidar/compare', { derived, reference }),
   },
 

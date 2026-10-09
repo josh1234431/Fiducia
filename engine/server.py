@@ -395,6 +395,7 @@ def reference() -> dict:
         "lidarClasses": lidar.ASPRS_CLASSES,
         "cellAssignment": list(lidar.CELL_ASSIGNMENT),
         "voidFill": list(lidar.VOID_FILL),
+        "heightMethods": list(lidar.HEIGHT_METHODS),
     }
 
 
@@ -3578,6 +3579,85 @@ def lidar_rasterize(payload: dict = Body(...)) -> dict:
         return result
 
     job = jobs.submit("lidar", f"Rasterising {Path(source).name}", work)
+    return {"job": job.to_dict()}
+
+
+@app.post("/lidar/classify-ground")
+def lidar_classify_ground(payload: dict = Body(...)) -> dict:
+    project = require_project()
+    source = payload["path"]
+    stem = Path(source).stem
+    options = lidar.GroundOptions(
+        output_path=payload.get("outputPath")
+        or str(project.outputs_dir / f"{stem}_ground{Path(source).suffix.lower() or '.laz'}"),
+        cell_size=float(payload.get("cellSize", 1.0)),
+        slope=float(payload.get("slope", 0.15)),
+        window=float(payload.get("window", 18.0)),
+        elevation_threshold=float(payload.get("elevationThreshold", 0.5)),
+        elevation_scalar=float(payload.get("elevationScalar", 1.25)),
+        low_noise=bool(payload.get("lowNoise", True)),
+        crs=payload.get("crs") or (project.state.get("projection") or {}).get("output"),
+    )
+
+    def work(progress, should_cancel):
+        result = lidar.classify_ground(source, options, progress, should_cancel)
+
+        def apply(state: dict) -> None:
+            state.setdefault("lidarClouds", []).append({
+                "source": source,
+                "outputPath": result["outputPath"],
+                "groundFraction": result["groundFraction"],
+                "lowNoisePoints": result["lowNoisePoints"],
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+
+        project.mutate("lidar_classify_ground", apply)
+        broadcast({"type": "project.changed", "operation": "lidar_classify_ground"})
+        return result
+
+    job = jobs.submit("lidar", f"Finding the ground in {Path(source).name}", work)
+    return {"job": job.to_dict()}
+
+
+@app.post("/lidar/height")
+def lidar_height(payload: dict = Body(...)) -> dict:
+    project = require_project()
+    source = payload["path"]
+    method = payload.get("method", "highest")
+    max_height = payload.get("maxHeight")
+    options = lidar.HeightOptions(
+        output_path=payload.get("outputPath")
+        or str(project.outputs_dir / f"{Path(source).stem}_height.tif"),
+        cell_size=float(payload.get("cellSize", 0.5)),
+        returns=payload.get("returns", "first"),
+        classes=payload.get("classes") or [],
+        method=method,
+        dtm_path=payload.get("dtmPath") or None,
+        max_height=float(max_height) if max_height not in (None, "") else None,
+        crs=payload.get("crs") or (project.state.get("projection") or {}).get("output"),
+    )
+
+    def work(progress, should_cancel):
+        result = lidar.height_above_ground(source, options, progress, should_cancel)
+
+        def apply(state: dict) -> None:
+            state.setdefault("lidar", []).append({
+                "kind": "height",
+                "source": source,
+                "outputPath": result["outputPath"],
+                "cellSize": result["cellSize"],
+                "pointsUsed": result["pointsUsed"],
+                "classes": result["classes"],
+                "method": result["method"],
+                "maxHeight": result["maxHeight"],
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+
+        project.mutate("lidar_height", apply)
+        broadcast({"type": "project.changed", "operation": "lidar_height"})
+        return result
+
+    job = jobs.submit("lidar", f"Measuring heights in {Path(source).name}", work)
     return {"job": job.to_dict()}
 
 

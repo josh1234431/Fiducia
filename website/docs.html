@@ -809,8 +809,10 @@ td:first-child { color: var(--ink); font-weight: 600; }
         range and LAS version. If no coordinate system is declared, the project's output projection is assumed.
       </p>
       <ul>
+        <li><strong>Ground.</strong> A cloud with no ground class (or a poor one) can have its ground found with the Simple Morphological Filter (SMRF; Pingel, Clarke and McBride, 2013). It writes a new cloud beside your outputs and opens it; the original file is not changed. Points found to be ground become class 2, points previously labelled ground that are not become class 1, and every other class is kept. Points far below the surrounding ground are labelled low noise (class 7). Options: cell size, the width of the largest object to remove, the steepest slope expected, and how far off the ground surface a point can lie and still count as ground. The defaults are the published ones, which hold across forest, town and open country.</li>
         <li><strong>Classification filter.</strong> Every class is listed with its share of the points before you choose, because "my DTM has holes" is almost always "ground was only a few percent of the returns". Ground (class 2) alone makes a terrain model; add vegetation and buildings for a surface model.</li>
         <li><strong>Rasterising</strong>: cell size (1 m by default; the average spacing is shown beside it) and returns (all, first, last or single only). Options: cell assignment (inverse distance, mean, minimum or maximum) and void fill (natural neighbour, linear, nearest or none).</li>
+        <li><strong>Height above ground</strong> rasterises each point's height above the ground: a canopy height model over vegetation, a normalised DSM over buildings. The ground comes from the cloud's class 2 points or from any terrain model you choose. <em>Highest point</em> takes the top return in each cell. <em>Pit-free</em> (Khosravipour et al., 2014) combines triangulated surfaces of the points above a ladder of heights, so a first return that slipped deep into a crown cannot punch a hole in it; its longest allowed triangle edge is set from the point spacing. Options: returns (first by default), a maximum height that leaves out birds and other high noise, and limiting the model to the classes ticked in the filter. Noise classes 7 and 18 are always left out, and heights below the ground read zero.</li>
         <li><strong>Validate</strong> compares a result with a reference surface: RMSE, R², mean error, sample count and the regression line.</li>
       </ul>
       <p>LiDAR surfaces appear in the Terrain step for repair, hillshades, contours and volumes.</p>
@@ -1047,6 +1049,11 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
     <section class="doc" id="release-notes" data-group="Help" data-title="Release notes">
       <div class="doc__group">Help</div>
       <h2>Release notes</h2>
+      <h3>Since 0.2.1</h3>
+      <p>In the next release.</p>
+      <ul>
+        <li>LiDAR: finding the ground in a point cloud, and height above ground (canopy height models and normalised DSMs), including a pit-free method for dense canopy.</li>
+      </ul>
       <h3>0.2.1, 8 October 2026</h3>
       <ul>
         <li>A refreshed accent colour across the app, the website and rendered outputs.</li>

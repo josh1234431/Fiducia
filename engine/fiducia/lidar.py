@@ -1,7 +1,10 @@
 """LiDAR point clouds to elevation rasters.
 
 Named for the pulsed light that produces the data. Ingests LAS/LAZ, filters by
-ASPRS classification and return number, and rasterises to a DTM or DSM.
+ASPRS classification and return number, and rasterises to a DTM or DSM. It also
+finds the ground in an unclassified cloud, and measures every point's height
+above that ground -- a canopy height model over trees, a normalised DSM over a
+town.
 
 The interpolation chain matches what the ArcGIS "LAS Dataset to Raster" tool
 does -- binning with a cell assignment rule, then void filling -- because that
@@ -20,7 +23,10 @@ import math
 
 import numpy as np
 
-__all__ = ["LidarSummary", "RasterizeOptions", "inspect_cloud", "rasterize", "ASPRS_CLASSES"]
+__all__ = [
+    "LidarSummary", "RasterizeOptions", "inspect_cloud", "rasterize", "ASPRS_CLASSES",
+    "GroundOptions", "classify_ground", "HeightOptions", "height_above_ground",
+]
 
 # The ASPRS standard classification codes that actually turn up in practice.
 ASPRS_CLASSES = {
@@ -175,6 +181,13 @@ def _filter_points(points, options: RasterizeOptions):
     return keep
 
 
+def _grid_shape(bounds: tuple, cell: float) -> tuple[int, int]:
+    """(rows, columns) of a grid of the given cell size over the bounds."""
+    west, south, east, north = bounds
+    return (max(1, int(np.ceil((north - south) / cell))),
+            max(1, int(np.ceil((east - west) / cell))))
+
+
 def _bin_points(
     xs: np.ndarray,
     ys: np.ndarray,
@@ -186,8 +199,7 @@ def _bin_points(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Bin points into cells. Returns (grid, filled_mask)."""
     west, south, east, north = bounds
-    width = max(1, int(np.ceil((east - west) / cell)))
-    height = max(1, int(np.ceil((north - south) / cell)))
+    height, width = _grid_shape(bounds, cell)
 
     cols = np.clip(((xs - west) / cell).astype(np.int64), 0, width - 1)
     rows = np.clip(((north - ys) / cell).astype(np.int64), 0, height - 1)
@@ -295,6 +307,432 @@ def _fill_voids(grid: np.ndarray, method: str, max_radius: int) -> np.ndarray:
     return result
 
 
+def _resolve_crs(header, supplied: Optional[str]) -> str:
+    """The cloud's coordinate system: the one supplied, else the file's own."""
+    if supplied:
+        return supplied
+    try:
+        parsed = header.parse_crs()
+        if parsed is not None:
+            return parsed.to_string()
+    except Exception:
+        pass
+    raise ValueError(
+        "The point cloud has no coordinate system and none was supplied. "
+        "LAS files frequently omit it -- set it explicitly before rasterising."
+    )
+
+
+def _write_raster(path: str, grid: np.ndarray, bounds: tuple, cell: float,
+                  crs_name: str, nodata: float) -> None:
+    """A tiled, compressed float GeoTIFF with overviews; NaN becomes nodata."""
+    import rasterio
+    from rasterio.transform import Affine
+
+    from .geodesy import file_crs
+
+    output = np.where(np.isfinite(grid), grid, nodata).astype(np.float32)
+    height, width = output.shape
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with rasterio.open(
+        path, "w", driver="GTiff", width=width, height=height, count=1,
+        dtype="float32", crs=file_crs(crs_name),
+        transform=Affine(cell, 0.0, bounds[0], 0.0, -cell, bounds[3]),
+        nodata=nodata, tiled=True, blockxsize=256, blockysize=256,
+        compress="DEFLATE", BIGTIFF="IF_SAFER",
+    ) as sink:
+        sink.write(output, 1)
+    try:
+        from . import raster
+
+        raster.build_overviews(path)
+    except Exception:
+        pass
+
+
+def _snapped_bounds(xs: np.ndarray, ys: np.ndarray, cell: float) -> tuple:
+    """Cell edges on whole multiples of the cell size, enclosing every point."""
+    return (math.floor(xs.min() / cell) * cell, math.floor(ys.min() / cell) * cell,
+            (math.floor(xs.max() / cell) + 1) * cell, (math.floor(ys.max() / cell) + 1) * cell)
+
+
+def _sample_grid(grid: np.ndarray, bounds: tuple, cell: float,
+                 xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
+    """Bilinear value of a grid (on cell centres) at each point."""
+    from scipy.ndimage import map_coordinates
+
+    cols = (xs - bounds[0]) / cell - 0.5
+    rows = (bounds[3] - ys) / cell - 0.5
+    return map_coordinates(grid, [rows, cols], order=1, mode="nearest")
+
+
+def _fill_all(grid: np.ndarray) -> np.ndarray:
+    """Fill every empty cell: linearly inside the data, nearest outside it."""
+    holes = ~np.isfinite(grid)
+    if not holes.any() or (~holes).sum() < 4:
+        return grid
+    return _fill_voids(grid, "linear", max(grid.shape))
+
+
+# Points that are known noise never take part in ground or height work.
+NOISE_CLASSES = (7, 18)
+
+
+@dataclass
+class GroundOptions:
+    """Simple Morphological Filter (Pingel, Clarke and McBride, 2013).
+
+    The defaults are the paper's recommended values, which hold across urban,
+    forested and mixed ground.
+    """
+    output_path: str = ""
+    cell_size: float = 1.0          # m, of the working minimum surface
+    slope: float = 0.15             # rise over run the ground may have
+    window: float = 18.0            # m, the widest object to remove (largest building)
+    elevation_threshold: float = 0.5   # m, how far off the ground surface still counts
+    elevation_scalar: float = 1.25  # extra tolerance per unit of local slope
+    low_noise: bool = True          # label points far below the ground as class 7
+    low_noise_threshold: float = 2.0   # m below the neighbourhood's ground
+    crs: Optional[str] = None
+
+
+def _disk(radius: int) -> np.ndarray:
+    span = np.arange(-radius, radius + 1)
+    return (span[:, None] ** 2 + span[None, :] ** 2) <= radius * radius
+
+
+def classify_ground(
+    path: str,
+    options: GroundOptions,
+    progress: Optional[Callable[[float, str], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> dict:
+    """Label the ground in a cloud and write the result as a new LAS/LAZ file.
+
+    Only the ground labels change: points found to be ground become class 2,
+    points that were class 2 but are not ground become class 1, and every
+    other class (vegetation, buildings, water, anything a vendor assigned) is
+    kept. Known noise (classes 7 and 18) is left out of the search and kept.
+    The source file is never modified.
+    """
+    import laspy
+    from scipy.ndimage import grey_opening, median_filter
+
+    def step(fraction, message):
+        if progress:
+            progress(fraction, message)
+        if should_cancel and should_cancel():
+            raise InterruptedError("Cancelled")
+
+    step(0.03, "Reading point cloud")
+    las = laspy.read(path)
+    _resolve_crs(las.header, options.crs)
+    classification = np.asarray(las.classification).astype(np.int64)
+    xs = np.asarray(las.x, dtype=np.float64)
+    ys = np.asarray(las.y, dtype=np.float64)
+    zs = np.asarray(las.z, dtype=np.float64)
+    candidate = ~np.isin(classification, NOISE_CLASSES)
+    if candidate.sum() < 10:
+        raise ValueError("The cloud has too few points to find the ground in.")
+
+    cell = float(options.cell_size)
+    bounds = _snapped_bounds(xs[candidate], ys[candidate], cell)
+
+    step(0.15, "Building the minimum surface")
+    zmin, _ = _bin_points(xs[candidate], ys[candidate], zs[candidate], bounds, cell, "minimum", 2.0)
+    zmin = _fill_all(zmin)
+
+    low = np.zeros(xs.shape, dtype=bool)
+    if options.low_noise:
+        # A point well below the ground around it is a multipath or sensor
+        # artefact; left in, it would drag the minimum surface down with it.
+        neighbourhood = median_filter(zmin, size=5, mode="nearest")
+        reference = _sample_grid(neighbourhood, bounds, cell, xs, ys)
+        low = candidate & (zs < reference - options.low_noise_threshold)
+        if low.any():
+            keep = candidate & ~low
+            zmin, _ = _bin_points(xs[keep], ys[keep], zs[keep], bounds, cell, "minimum", 2.0)
+            zmin = _fill_all(zmin)
+
+    step(0.3, "Opening the surface")
+    # A progressive opening with ever-larger disks: anything that stands
+    # further above the opened surface than the slope allows over that
+    # distance is an object, not ground.
+    objects = np.zeros(zmin.shape, dtype=bool)
+    last = zmin
+    widest = max(1, int(math.ceil(options.window / cell)))
+    for radius in range(1, widest + 1):
+        opened = grey_opening(last, footprint=_disk(radius), mode="nearest")
+        objects |= (last - opened) > options.slope * radius * cell
+        last = opened
+        step(0.3 + 0.4 * radius / widest, f"Opening the surface ({radius}/{widest})")
+
+    step(0.72, "Interpolating the ground")
+    provisional = np.where(objects, np.nan, zmin)
+    provisional = _fill_all(provisional)
+    gradient_rows, gradient_cols = np.gradient(provisional, cell)
+    slope = np.hypot(gradient_rows, gradient_cols)
+
+    step(0.85, "Labelling points")
+    surface = _sample_grid(provisional, bounds, cell, xs, ys)
+    local_slope = _sample_grid(slope, bounds, cell, xs, ys)
+    tolerance = options.elevation_threshold + options.elevation_scalar * local_slope
+    ground = candidate & ~low & (np.abs(zs - surface) <= tolerance)
+
+    updated = classification.copy()
+    updated[(classification == 2) & ~ground] = 1
+    updated[ground] = 2
+    updated[low] = 7
+    las.classification = updated.astype(np.asarray(las.classification).dtype)
+
+    step(0.93, "Writing point cloud")
+    Path(options.output_path).parent.mkdir(parents=True, exist_ok=True)
+    las.write(options.output_path)
+    step(1.0, "Complete")
+
+    total = int(xs.size)
+    return {
+        "outputPath": options.output_path,
+        "pointsTotal": total,
+        "groundPoints": int(ground.sum()),
+        "groundFraction": float(ground.sum() / max(total, 1)),
+        "lowNoisePoints": int(low.sum()),
+        "relabelledFromGround": int(((classification == 2) & ~ground).sum()),
+        "cellSize": cell,
+        "objectCells": float(objects.mean()),
+    }
+
+
+HEIGHT_METHODS = ("highest", "pit_free")
+
+
+@dataclass
+class HeightOptions:
+    """Height above ground: a normalised DSM, or a canopy height model over vegetation."""
+    output_path: str = ""
+    cell_size: float = 0.5
+    returns: str = "first"               # all | first | last | single
+    classes: Sequence[int] = ()          # empty: every class except noise
+    method: str = "highest"              # highest | pit_free
+    dtm_path: Optional[str] = None       # ground from this raster instead of class 2
+    ground_cell_size: float = 1.0        # m, of the DTM made from class 2
+    max_height: Optional[float] = None   # drop points higher than this above ground
+    pit_free_thresholds: Sequence[float] = (0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0)
+    pit_free_max_edge: Optional[float] = None  # m, longest triangle edge above the first layer;
+                                               # None: five times the point spacing, at least 1 m
+    void_fill: str = "linear"
+    max_void_radius_cells: int = 4
+    crs: Optional[str] = None
+    nodata: float = -9999.0
+
+
+def _ground_surface(las, options: HeightOptions, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
+    """The ground height under every point, from a DTM raster or class 2."""
+    if options.dtm_path:
+        from scipy.ndimage import map_coordinates
+
+        from . import raster
+
+        dataset = raster.open_raster(options.dtm_path)
+        dtm = dataset.read(1, masked=True).astype(np.float64).filled(np.nan)
+        inverse = ~dataset.transform
+        cols, rows = inverse * (xs, ys)
+        values = map_coordinates(_fill_all(dtm), [np.asarray(rows) - 0.5, np.asarray(cols) - 0.5],
+                                 order=1, mode="nearest")
+        return values
+
+    classification = np.asarray(las.classification)
+    ground = classification == 2
+    if ground.sum() < 3:
+        raise ValueError(
+            "The cloud has no ground points (class 2). Classify the ground first, "
+            "or give a terrain model to measure heights from.")
+    gx = np.asarray(las.x, dtype=np.float64)[ground]
+    gy = np.asarray(las.y, dtype=np.float64)[ground]
+    gz = np.asarray(las.z, dtype=np.float64)[ground]
+    cell = options.ground_cell_size
+    bounds = _snapped_bounds(np.concatenate([gx, xs]), np.concatenate([gy, ys]), cell)
+    dtm, _ = _bin_points(gx, gy, gz, bounds, cell, "mean", 2.0)
+    return _sample_grid(_fill_all(dtm), bounds, cell, xs, ys)
+
+
+def _tin_grid(xs: np.ndarray, ys: np.ndarray, zs: np.ndarray, bounds: tuple, cell: float,
+              max_edge: Optional[float]) -> np.ndarray:
+    """A triangulated surface sampled at cell centres; NaN under long-edged triangles."""
+    from scipy.spatial import Delaunay
+
+    west, south, east, north = bounds
+    height, width = _grid_shape(bounds, cell)
+    grid = np.full((height, width), np.nan)
+    if xs.size < 3:
+        return grid
+    # Triangulate in coordinates local to the grid: at map coordinates in the
+    # millions the triangulation loses the precision it needs to locate cells.
+    try:
+        triangulation = Delaunay(np.column_stack([xs - west, ys - south]))
+    except Exception:
+        return grid
+
+    cx = (np.arange(width) + 0.5) * cell
+    cy = (north - south) - (np.arange(height) + 0.5) * cell
+    gx, gy = np.meshgrid(cx, cy)
+    targets = np.column_stack([gx.ravel(), gy.ravel()])
+    simplex = triangulation.find_simplex(targets)
+    inside = simplex >= 0
+    if max_edge:
+        corners = triangulation.points[triangulation.simplices]
+        edges = np.stack([
+            np.hypot(*(corners[:, 0] - corners[:, 1]).T),
+            np.hypot(*(corners[:, 1] - corners[:, 2]).T),
+            np.hypot(*(corners[:, 2] - corners[:, 0]).T),
+        ], axis=1).max(axis=1)
+        short = edges <= max_edge
+        inside &= np.where(simplex >= 0, short[np.maximum(simplex, 0)], False)
+
+    chosen = simplex[inside]
+    transform = triangulation.transform[chosen]
+    offset = targets[inside] - transform[:, 2]
+    first_two = np.einsum("nij,nj->ni", transform[:, :2], offset)
+    weights = np.column_stack([first_two, 1.0 - first_two.sum(axis=1)])
+    values = (zs[triangulation.simplices[chosen]] * weights).sum(axis=1)
+    flat = grid.ravel()
+    flat[np.nonzero(inside)[0]] = values
+    return flat.reshape(height, width)
+
+
+def _highest_per_cell(xs, ys, zs, bounds, cell):
+    """The single highest point of each cell, as point arrays."""
+    west, south, east, north = bounds
+    height, width = _grid_shape(bounds, cell)
+    cols = np.clip(((xs - west) / cell).astype(np.int64), 0, width - 1)
+    rows = np.clip(((north - ys) / cell).astype(np.int64), 0, height - 1)
+    flat = rows * width + cols
+    order = np.lexsort((-zs, flat))
+    first = np.ones(order.size, dtype=bool)
+    first[1:] = flat[order][1:] != flat[order][:-1]
+    chosen = order[first]
+    return xs[chosen], ys[chosen], zs[chosen]
+
+
+def height_above_ground(
+    path: str,
+    options: HeightOptions,
+    progress: Optional[Callable[[float, str], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> dict:
+    """Rasterise each point's height above the ground.
+
+    Over vegetation this is a canopy height model, over buildings a normalised
+    DSM. Two methods:
+
+    - highest: the highest point in each cell, the usual quick model.
+    - pit_free (Khosravipour et al., 2014): triangulated surfaces of the
+      points above a ladder of heights, each discarding triangles with long
+      edges, combined by taking the highest. A first return that slipped deep
+      into a crown then cannot punch a pit in it.
+    """
+    import laspy
+
+    def step(fraction, message):
+        if progress:
+            progress(fraction, message)
+        if should_cancel and should_cancel():
+            raise InterruptedError("Cancelled")
+
+    if options.method not in HEIGHT_METHODS:
+        raise ValueError(f"Unknown method {options.method!r}; use one of {HEIGHT_METHODS}")
+
+    step(0.03, "Reading point cloud")
+    las = laspy.read(path)
+    crs_name = _resolve_crs(las.header, options.crs)
+    classification = np.asarray(las.classification)
+
+    keep = _filter_points(las, RasterizeOptions(classes=list(options.classes), returns=options.returns))
+    # Ground points stay in: they are what makes open ground read zero rather
+    # than empty, and both methods keep the highest value, so they never pull
+    # a canopy down.
+    keep &= ~np.isin(classification, NOISE_CLASSES)
+    if keep.sum() < 3:
+        raise ValueError("No points survived the class and return filter.")
+
+    xs = np.asarray(las.x, dtype=np.float64)[keep]
+    ys = np.asarray(las.y, dtype=np.float64)[keep]
+    zs = np.asarray(las.z, dtype=np.float64)[keep]
+
+    step(0.2, "Measuring the ground under each point")
+    heights = zs - _ground_surface(las, options, xs, ys)
+    usable = np.isfinite(heights)
+    dropped_high = 0
+    if options.max_height is not None:
+        too_high = heights > options.max_height
+        dropped_high = int((too_high & usable).sum())
+        usable &= ~too_high
+    xs, ys = xs[usable], ys[usable]
+    heights = np.maximum(heights[usable], 0.0)
+    if heights.size < 3:
+        raise ValueError("No points are left once their heights are measured.")
+
+    cell = float(options.cell_size)
+    # The grid covers the whole cloud, so heights line up with the cloud's
+    # other rasters; cells with no points stay empty.
+    bounds = _snapped_bounds(np.asarray(las.x)[~np.isin(classification, NOISE_CLASSES)],
+                             np.asarray(las.y)[~np.isin(classification, NOISE_CLASSES)], cell)
+
+    max_edge = None
+    if options.method == "highest":
+        step(0.5, f"Binning {heights.size:,} points at {cell} m")
+        grid, filled = _bin_points(xs, ys, heights, bounds, cell, "maximum", 2.0)
+        grid = _fill_voids(grid, options.void_fill, options.max_void_radius_cells)
+    else:
+        # Thin to the highest point in each half cell first: the triangulation
+        # only ever needs the top of the canopy, and it keeps a dense cloud fast.
+        tx, ty, th = _highest_per_cell(xs, ys, heights, bounds, cell / 2)
+        # The edge limit has to bridge the gap a deep return leaves in a crown,
+        # and that gap scales with the spacing of the points, so it is set from
+        # the data unless given.
+        _, occupied = _bin_points(tx, ty, th, bounds, cell, "maximum", 2.0)
+        spacing = math.sqrt(occupied.sum() * cell * cell / max(th.size, 1))
+        max_edge = options.pit_free_max_edge or max(1.0, 5.0 * spacing)
+        layers = sorted({0.0, *[float(t) for t in options.pit_free_thresholds]})
+        layers = [t for t in layers if t == 0.0 or t < th.max()]
+        grid = np.full(_grid_shape(bounds, cell), np.nan)
+        for index, threshold in enumerate(layers):
+            step(0.3 + 0.6 * index / len(layers), f"Surface above {threshold:g} m")
+            above = th >= threshold
+            layer = _tin_grid(tx[above], ty[above], th[above], bounds, cell,
+                              None if threshold == 0.0 else max_edge)
+            grid = np.fmax(grid, layer)
+        # The first layer spans the convex hull; keep only cells near real points.
+        _, filled = _bin_points(xs, ys, heights, bounds, cell, "maximum", 2.0)
+        from scipy.ndimage import binary_dilation
+
+        grid = np.where(binary_dilation(filled, iterations=options.max_void_radius_cells), grid, np.nan)
+
+    step(0.93, "Writing raster")
+    _write_raster(options.output_path, grid, bounds, cell, crs_name, options.nodata)
+    step(1.0, "Complete")
+
+    valid = grid[np.isfinite(grid)]
+    return {
+        "outputPath": options.output_path,
+        "width": int(grid.shape[1]),
+        "height": int(grid.shape[0]),
+        "cellSize": cell,
+        "bounds": list(bounds),
+        "crs": crs_name,
+        "method": options.method,
+        "pitFreeMaxEdge": float(max_edge) if options.method == "pit_free" else None,
+        "returns": options.returns,
+        "classes": list(options.classes),
+        "groundSource": options.dtm_path or "class 2",
+        "pointsUsed": int(heights.size),
+        "pointsAboveMaxHeight": dropped_high,
+        "maxHeight": float(valid.max()) if valid.size else 0.0,
+        "height95": float(np.percentile(valid, 95)) if valid.size else 0.0,
+        "coverage": float(np.isfinite(grid).mean()),
+    }
+
+
 def rasterize(
     path: str,
     options: RasterizeOptions,
@@ -303,10 +741,6 @@ def rasterize(
 ) -> dict:
     """Filter a point cloud and write an elevation GeoTIFF."""
     import laspy
-    import rasterio
-    from rasterio.transform import Affine
-
-    from .geodesy import file_crs
 
     if progress:
         progress(0.05, "Reading point cloud")
@@ -318,6 +752,7 @@ def rasterize(
     if should_cancel and should_cancel():
         raise InterruptedError("Cancelled")
 
+    crs_name = _resolve_crs(header, options.crs)
     total = len(points.x)
     if progress:
         progress(0.3, f"Filtering {total:,} points")
@@ -357,53 +792,11 @@ def rasterize(
         progress(0.75, f"Filling {void_count:,} empty cells")
 
     grid = _fill_voids(grid, options.void_fill, options.max_void_radius_cells)
-    output = np.where(np.isfinite(grid), grid, options.nodata).astype(np.float32)
 
-    crs_name = options.crs
-    if not crs_name:
-        try:
-            parsed = header.parse_crs()
-            crs_name = parsed.to_string() if parsed is not None else None
-        except Exception:
-            crs_name = None
-    if not crs_name:
-        raise ValueError(
-            "The point cloud has no coordinate system and none was supplied. "
-            "LAS files frequently omit it -- set it explicitly before rasterising."
-        )
-
-    height, width = output.shape
-    transform = Affine(options.cell_size, 0.0, bounds[0], 0.0, -options.cell_size, bounds[3])
-
-    Path(options.output_path).parent.mkdir(parents=True, exist_ok=True)
     if progress:
         progress(0.9, "Writing raster")
-
-    with rasterio.open(
-        options.output_path,
-        "w",
-        driver="GTiff",
-        width=width,
-        height=height,
-        count=1,
-        dtype="float32",
-        crs=file_crs(crs_name),
-        transform=transform,
-        nodata=options.nodata,
-        tiled=True,
-        blockxsize=256,
-        blockysize=256,
-        compress="DEFLATE",
-        BIGTIFF="IF_SAFER",
-    ) as sink:
-        sink.write(output, 1)
-
-    try:
-        from . import raster
-
-        raster.build_overviews(options.output_path)
-    except Exception:
-        pass
+    height, width = grid.shape
+    _write_raster(options.output_path, grid, bounds, cell, crs_name, options.nodata)
 
     if progress:
         progress(1.0, "Complete")

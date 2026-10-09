@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../../state/store'
 import { api } from '../../lib/api'
 import InfoTip from '../InfoTip'
@@ -9,6 +9,10 @@ import InfoTip from '../InfoTip'
  * The class histogram is shown before any filtering choice is made, because
  * "my DTM has holes" is almost always "class 2 was 4% of the returns" — and
  * that is knowable in advance rather than after a long rasterise.
+ *
+ * A cloud with no ground class can have its ground found here, which writes a
+ * new cloud and opens it. Heights above that ground make a canopy height
+ * model over vegetation and a normalised DSM over buildings.
  */
 export default function LidarPanel() {
   const project = useStore((s) => s.project)
@@ -26,7 +30,23 @@ export default function LidarPanel() {
     voidFill: 'natural_neighbor',
   })
 
+  const [ground, setGround] = useState({
+    cellSize: 1.0, slope: 0.15, window: 18, elevationThreshold: 0.5, lowNoise: true,
+  })
+  const [height, setHeight] = useState({
+    cellSize: 0.5, returns: 'first', method: 'pit_free', dtmPath: '', maxHeight: '',
+    tickedOnly: false,
+  })
+
   const outputs = project?.lidar || []
+  const clouds = project?.lidarClouds || []
+
+  async function open(path) {
+    setSource(path)
+    setSummary(null)
+    const result = await call(() => api.lidar.inspect(path), { refresh: false })
+    if (result) setSummary(result)
+  }
 
   async function choose() {
     if (!window.fiducia?.isDesktop) {
@@ -37,12 +57,34 @@ export default function LidarPanel() {
       title: 'Open a point cloud', multiple: false,
       filters: [{ name: 'LiDAR', extensions: ['las', 'laz'] }],
     })
-    if (!paths?.length) return
-    setSource(paths[0])
-    setSummary(null)
-    const result = await call(() => api.lidar.inspect(paths[0]), { refresh: false })
-    if (result) setSummary(result)
+    if (paths?.length) open(paths[0])
   }
+
+  // When a ground search on the open cloud finishes, carry on with its result.
+  const seenClouds = useRef(clouds.length)
+  useEffect(() => {
+    if (clouds.length > seenClouds.current) {
+      const latest = clouds[clouds.length - 1]
+      if (latest.source === source) {
+        open(latest.outputPath)
+        toast(`Ground found: ${(latest.groundFraction * 100).toFixed(1)}% of points`, 'good')
+      }
+    }
+    seenClouds.current = clouds.length
+  }, [clouds.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function chooseDtm() {
+    const paths = await window.fiducia?.dialog.openFiles({
+      title: 'Choose a terrain model', multiple: false,
+      filters: [{ name: 'Raster', extensions: ['tif', 'tiff', 'img', 'pix'] }],
+    })
+    if (paths?.length) setHeight({ ...height, dtmPath: paths[0] })
+  }
+
+  const groundShare = summary
+    ? (summary.classHistogram['2']?.count || 0) / Math.max(summary.pointCount, 1)
+    : 0
+  const fileName = (path) => path.split(/[\\/]/).pop()
 
   function toggleClass(code) {
     setOptions((current) => ({
@@ -130,6 +172,100 @@ export default function LidarPanel() {
 
       {summary && (
         <>
+          <section className="section">
+            <div className="section__head">
+              <span className="section__title">
+                Ground
+                <InfoTip>
+                  Finds the ground with the Simple Morphological Filter (SMRF) and
+                  writes a new cloud with it labelled as class 2. Other classes are
+                  kept, and points far below the ground are labelled as low noise
+                  (class 7). The opened file is not changed.
+                </InfoTip>
+              </span>
+              <span className="section__rule" />
+              <span className="chip">
+                {groundShare > 0 ? `${(groundShare * 100).toFixed(1)}% ground` : 'no ground class'}
+              </span>
+            </div>
+
+            <details className="advanced">
+              <summary>Options</summary>
+              <div className="advanced__body">
+                <div className="grid-2">
+                  <div className="field">
+                    <label className="field__label">Cell size <span className="dim">m</span></label>
+                    <input type="number" step="0.25" min="0.1" className="numeric"
+                      value={ground.cellSize}
+                      onChange={(e) => setGround({ ...ground, cellSize: Number(e.target.value) })} />
+                  </div>
+                  <div className="field">
+                    <label className="field__label">
+                      Largest object <span className="dim">m</span>
+                      <InfoTip>The width of the largest building or object to remove.</InfoTip>
+                    </label>
+                    <input type="number" step="1" min="1" className="numeric"
+                      value={ground.window}
+                      onChange={(e) => setGround({ ...ground, window: Number(e.target.value) })} />
+                  </div>
+                  <div className="field">
+                    <label className="field__label">
+                      Slope <span className="dim">rise/run</span>
+                      <InfoTip>The steepest ground expected. Raise it for steep terrain.</InfoTip>
+                    </label>
+                    <input type="number" step="0.05" min="0.01" className="numeric"
+                      value={ground.slope}
+                      onChange={(e) => setGround({ ...ground, slope: Number(e.target.value) })} />
+                  </div>
+                  <div className="field">
+                    <label className="field__label">
+                      Tolerance <span className="dim">m</span>
+                      <InfoTip>How far off the ground surface a point can be and still count as ground.</InfoTip>
+                    </label>
+                    <input type="number" step="0.05" min="0.05" className="numeric"
+                      value={ground.elevationThreshold}
+                      onChange={(e) => setGround({ ...ground, elevationThreshold: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <label className="field field--row">
+                  <span className="field__label">Label points far below the ground as low noise</span>
+                  <input type="checkbox" checked={ground.lowNoise}
+                    onChange={(e) => setGround({ ...ground, lowNoise: e.target.checked })} />
+                </label>
+              </div>
+            </details>
+
+            <button
+              className={`btn btn--block ${groundShare > 0 ? '' : 'btn--primary'}`}
+              onClick={() => call(() => api.lidar.classifyGround({ path: source, ...ground }))}
+            >
+              {groundShare > 0 ? 'Find the ground again' : 'Find the ground'}
+            </button>
+
+            {clouds.length > 0 && (
+              <div className="rows" style={{ marginTop: 'var(--step-3)' }}>
+                {clouds.map((entry, index) => (
+                  <div key={index} className={`row ${entry.outputPath === source ? 'row--active' : ''}`}>
+                    <div className="row__main">
+                      <div className="row__name truncate">{fileName(entry.outputPath)}</div>
+                      <div className="row__meta">
+                        {(entry.groundFraction * 100).toFixed(1)}% ground
+                        {entry.lowNoisePoints ? `, ${entry.lowNoisePoints.toLocaleString()} low noise` : ''}
+                      </div>
+                    </div>
+                    <div className="row__actions">
+                      {entry.outputPath !== source && (
+                        <button className="btn btn--ghost btn--sm" onClick={() => open(entry.outputPath)}>
+                          Open
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           <section className="section">
             <div className="section__head">
               <span className="section__title">
@@ -249,6 +385,102 @@ export default function LidarPanel() {
               Create elevation raster
             </button>
           </section>
+
+          <section className="section">
+            <div className="section__head">
+              <span className="section__title">
+                Height above ground
+                <InfoTip>
+                  Each point's height above the ground, rasterised: a canopy height
+                  model over vegetation, a normalised DSM over buildings. Highest
+                  point takes the top return in each cell. Pit-free (Khosravipour
+                  et al., 2014) layers triangulated surfaces so that returns which
+                  slip deep into a crown cannot punch holes in it.
+                </InfoTip>
+              </span>
+              <span className="section__rule" />
+            </div>
+
+            <div className="grid-2">
+              <div className="field">
+                <label className="field__label">Cell size <span className="dim">m</span></label>
+                <input type="number" step="0.25" min="0.1" className="numeric"
+                  value={height.cellSize}
+                  onChange={(e) => setHeight({ ...height, cellSize: Number(e.target.value) })} />
+              </div>
+              <div className="field">
+                <label className="field__label">Method</label>
+                <select value={height.method}
+                  onChange={(e) => setHeight({ ...height, method: e.target.value })}>
+                  <option value="pit_free">Pit-free</option>
+                  <option value="highest">Highest point</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="field">
+              <label className="field__label">Ground from</label>
+              <select value={height.dtmPath ? 'dtm' : 'cloud'}
+                onChange={(e) => (e.target.value === 'dtm' ? chooseDtm()
+                  : setHeight({ ...height, dtmPath: '' }))}>
+                <option value="cloud">Ground points in this cloud</option>
+                <option value="dtm">{height.dtmPath ? fileName(height.dtmPath) : 'A terrain model…'}</option>
+              </select>
+              {!height.dtmPath && groundShare === 0 && (
+                <div className="field__hint" style={{ color: 'var(--signal-warn)' }}>
+                  This cloud has no ground class. Find the ground first, or choose a terrain model.
+                </div>
+              )}
+            </div>
+
+            <details className="advanced">
+              <summary>Options</summary>
+              <div className="advanced__body">
+                <div className="grid-2">
+                  <div className="field">
+                    <label className="field__label">Returns</label>
+                    <select value={height.returns}
+                      onChange={(e) => setHeight({ ...height, returns: e.target.value })}>
+                      <option value="first">First</option>
+                      <option value="all">All</option>
+                      <option value="last">Last</option>
+                      <option value="single">Single only</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label className="field__label">
+                      Maximum height <span className="dim">m</span>
+                      <InfoTip>Points higher than this above the ground are left out, such as birds or cloud returns.</InfoTip>
+                    </label>
+                    <input type="number" step="1" min="0" className="numeric" placeholder="none"
+                      value={height.maxHeight}
+                      onChange={(e) => setHeight({ ...height, maxHeight: e.target.value })} />
+                  </div>
+                </div>
+                <label className="field field--row">
+                  <span className="field__label">Only the classes ticked above</span>
+                  <input type="checkbox" checked={height.tickedOnly}
+                    onChange={(e) => setHeight({ ...height, tickedOnly: e.target.checked })} />
+                </label>
+              </div>
+            </details>
+
+            <button
+              className="btn btn--primary btn--block"
+              disabled={!height.dtmPath && groundShare === 0}
+              onClick={() => call(() => api.lidar.height({
+                path: source,
+                cellSize: height.cellSize,
+                returns: height.returns,
+                method: height.method,
+                dtmPath: height.dtmPath || null,
+                maxHeight: height.maxHeight === '' ? null : Number(height.maxHeight),
+                classes: height.tickedOnly ? options.classes : [],
+              }))}
+            >
+              Create height model
+            </button>
+          </section>
         </>
       )}
 
@@ -261,9 +493,12 @@ export default function LidarPanel() {
               <div key={index} className="row">
                 <div className="row__main">
                   <div className="row__name truncate">
-                    {entry.outputPath.split(/[\\/]/).pop()}
+                    {fileName(entry.outputPath)}
                   </div>
                   <div className="row__meta">
+                    {entry.kind === 'height'
+                      ? `height above ground, ${entry.method === 'pit_free' ? 'pit-free' : 'highest point'}, `
+                      : ''}
                     {entry.cellSize} m, {(entry.pointsUsed / 1e6).toFixed(2)}M points
                   </div>
                 </div>
