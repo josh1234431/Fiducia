@@ -1352,6 +1352,7 @@ main, footer.foot { position: relative; z-index: 1; }
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="mosaic-full">Mosaic</button>
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="dem">Stereo DEM</button>
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="terrain">Terrain</button>
+          <button class="tour__tab" role="tab" aria-selected="false" data-shot="lidar">LiDAR</button>
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="palette">Commands</button>
         </div>
         <figure class="window tour__stage" role="tabpanel">
@@ -1368,6 +1369,7 @@ main, footer.foot { position: relative; z-index: 1; }
           <img class="tour__slide" data-shot="mosaic-full" src="images/mosaic-full.jpg" width="2000" height="1250" loading="lazy" alt="The finished mosaic of the six photographs">
           <img class="tour__slide" data-shot="dem" src="images/dem.jpg" width="2000" height="1250" loading="lazy" alt="The Stereo DEM step: a stereo pair side by side, with pairs ranked by base-to-height ratio">
           <img class="tour__slide" data-shot="terrain" src="images/terrain.jpg" width="2000" height="1250" loading="lazy" alt="The Terrain step: a shaded relief open on the canvas">
+          <img class="tour__slide" data-shot="lidar" src="images/lidar.jpg" width="2000" height="1250" loading="lazy" alt="The LiDAR step: a forest point cloud from above, classified, with a side-on section through trees and buildings and the classes learned from labels">
           <img class="tour__slide" data-shot="palette" src="images/palette.jpg" width="2000" height="1250" loading="lazy" alt="The command palette open over the workspace">
         </figure>
         <p class="tour__caption" id="tour-caption" aria-live="polite"></p>
@@ -1462,7 +1464,12 @@ main, footer.foot { position: relative; z-index: 1; }
         <li><a href="docs.html#step-ortho"><span class="ability__name">Orthophotos</span><span class="ability__note">generating orthophotos on any DEM in parallel</span></a></li>
         <li><a href="docs.html#step-mosaic"><span class="ability__name">Mosaics</span><span class="ability__note">balancing colour and routing seams where photos agree</span></a></li>
         <li><a href="docs.html#step-terrain"><span class="ability__name">Terrain</span><span class="ability__note">filling voids, shading relief, contouring and computing volumes</span></a></li>
-        <li><a href="docs.html#step-lidar"><span class="ability__name">LiDAR</span><span class="ability__note">removing noise, classifying ground and learned classes, measuring heights and rasterising point clouds</span></a></li>
+        <li><a href="docs.html#step-lidar"><span class="ability__name">LiDAR ground classification</span><span class="ability__note">finding the ground in unclassified point clouds</span></a></li>
+        <li><a href="docs.html#step-lidar"><span class="ability__name">Canopy height models</span><span class="ability__note">measuring heights above ground, pit-free under dense canopy</span></a></li>
+        <li><a href="docs.html#step-lidar"><span class="ability__name">LiDAR noise filtering</span><span class="ability__note">labelling birds, multipath and stray returns as noise</span></a></li>
+        <li><a href="docs.html#step-lidar"><span class="ability__name">Point classes from labels</span><span class="ability__note">training a classifier on points labelled in a section view</span></a></li>
+        <li><a href="docs.html#step-lidar"><span class="ability__name">Large point clouds</span><span class="ability__note">processing surveys of any size in bounded memory</span></a></li>
+        <li><a href="docs.html#step-lidar"><span class="ability__name">LiDAR rasters</span><span class="ability__note">rasterising and checking point clouds against a reference</span></a></li>
         <li><a href="docs.html#scripting"><span class="ability__name">Satellite scenes</span><span class="ability__note">refining rational polynomial models with control</span></a></li>
         <li><a href="docs.html#step-reports"><span class="ability__name">Reports</span><span class="ability__note">listing residuals and accuracy, including the classic fixed-column layout</span></a></li>
         <li><a href="docs.html#saving"><span class="ability__name">Autosave, snapshots and crash recovery</span><span class="ability__note">saving every edit as it is made</span></a></li>
@@ -1937,6 +1944,7 @@ main, footer.foot { position: relative; z-index: 1; }
       'mosaic-full': '<b>Mosaic.</b> The finished mosaic, colour balanced, with seams that follow where the photos agree.',
       dem: '<b>Stereo DEM.</b> Every pair ranked by base-to-height ratio with a plain verdict, and shown side by side before you extract.',
       terrain: '<b>Terrain.</b> Shaded relief, contours, void filling, merging and volumes, from any elevation model in the project.',
+      lidar: '<b>LiDAR.</b> A forest point cloud from above and in section, classified into ground, vegetation and buildings by a classifier trained on labelled points.',
       palette: '<b>Commands.</b> <kbd>Ctrl</kbd> <kbd>K</kbd> reaches any step, photo or action by name.'
     };
     var index = 0, timer = 0, stopped = still, visible = false, DWELL = 6500;

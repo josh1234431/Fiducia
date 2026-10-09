@@ -11,6 +11,12 @@ import { api } from '../lib/api'
  * over them, Shift-drag to clear. Labels are saved with the project as they
  * are made, and train the classifier in the LiDAR step.
  */
+// Keep a drag going when the pointer leaves the element. A pen or touch that
+// has already lifted cannot be captured, and that must not stop the drag.
+function capture(event) {
+  try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* not capturable */ }
+}
+
 export default function PointCloudView() {
   const path = useStore((s) => s.lidarCloud)
   const section = useStore((s) => s.lidarSection)
@@ -90,7 +96,7 @@ export default function PointCloudView() {
 
   function onPlanDown(event) {
     if (!overview) return
-    event.currentTarget.setPointerCapture(event.pointerId)
+    capture(event)
     const point = toMap(event)
     setDraft({ start: point, end: point })
   }
@@ -229,7 +235,7 @@ export default function PointCloudView() {
 
   function onSectionDown(event) {
     if (!view) return
-    event.currentTarget.setPointerCapture(event.pointerId)
+    capture(event)
     const p = sectionPoint(event)
     const labelling = brush !== null && event.button === 0
     setBox({ from: p, to: p, mode: labelling ? (event.shiftKey ? 'clear' : 'label') : 'pan', view })
