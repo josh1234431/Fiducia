@@ -1003,6 +1003,7 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
         <li><strong>A synthetic drone block</strong> (consumer lens, half-pixel measurement noise, GPS only, no control) comes back with the ground's shape within 1.7 cm horizontally and 2.3 cm vertically, about one ground pixel, and the lens distortion within 0.2 px of up to 117 px. Placement is within the GPS's reach, as it must be without control.</li>
         <li><strong>A real drone flight</strong> (18 photos, public sample data) solves to 0.73 px RMS with σ₀ 0.87, and its dense surface agrees with an independent open-source reconstruction of the same flight to a median 0.09 m (87% within 0.5 m), once the GPS offset between the two is removed.</li>
         <li><strong>Speed</strong>: a 300-photo, 44,000-point block solves in under two minutes.</li>
+        <li><strong>LiDAR</strong>, on a synthetic forest of 110 trees with two buildings, birds and low noise: ground found for 99.9% of ground points with no tree or roof point mistaken for it, a terrain model within 3 cm RMS, tree heights within a median 7 cm, buildings within 3 cm, and the pit-free height model cutting crown cells more than 2 m low from 15% to 0.1%. Every bird is labelled noise while under 0.5% of real points are. On clouds from 2 to 8.3 million points, peak memory stays under 1 GB.</li>
         <li><strong>Crash recovery</strong> replays unsaved edits from the journal, and pulling the project drive mid-session loses nothing.</li>
       </ul>
     </section>
