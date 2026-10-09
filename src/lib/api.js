@@ -239,6 +239,12 @@ export const api = {
     rasterize: (payload) => request('POST', '/lidar/rasterize', payload),
     classifyGround: (payload) => request('POST', '/lidar/classify-ground', payload),
     height: (payload) => request('POST', '/lidar/height', payload),
+    noise: (payload) => request('POST', '/lidar/noise', payload),
+    overview: (path, colour) => request('POST', '/lidar/overview', { path, colour }),
+    section: (path, start, end, width) => request('POST', '/lidar/section', { path, start, end, width }),
+    labels: (path) => request('GET', `/lidar/labels?path=${encodeURIComponent(path)}`),
+    setLabels: (payload) => request('POST', '/lidar/labels', payload),
+    learn: (payload) => request('POST', '/lidar/learn', payload),
     compare: (derived, reference) => request('POST', '/lidar/compare', { derived, reference }),
   },
 

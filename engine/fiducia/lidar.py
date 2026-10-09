@@ -503,6 +503,274 @@ def classify_ground(
     }
 
 
+# -- noise ------------------------------------------------------------------
+
+NOISE_METHODS = ("statistical", "isolated")
+
+
+@dataclass
+class NoiseOptions:
+    """Points that do not belong to any surface: birds, multipath, sensor spikes.
+
+    statistical: a point whose mean distance to its nearest neighbours is far
+    above the cloud's typical spacing (Rusu et al., 2008).
+    isolated: a point with too few neighbours within a radius.
+    """
+    output_path: str = ""
+    method: str = "statistical"
+    neighbours: int = 8              # statistical: how many neighbours to measure
+    std_ratio: float = 2.5           # statistical: how many standard deviations is too far
+    radius: float = 2.0              # isolated: m, the search radius
+    min_neighbours: int = 3          # isolated: fewer than this within the radius is noise
+    crs: Optional[str] = None
+
+
+def filter_noise(
+    path: str,
+    options: NoiseOptions,
+    progress: Optional[Callable[[float, str], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> dict:
+    """Label noise in a cloud and write the result as a new LAS/LAZ file.
+
+    Noise is labelled, never deleted: a point below its neighbours becomes low
+    noise (class 7), one above them high noise (class 18), and every rasterising
+    and height tool then leaves it out. Points already labelled noise are kept,
+    and the source file is never modified.
+    """
+    import laspy
+    from scipy.spatial import cKDTree
+
+    def step(fraction, message):
+        if progress:
+            progress(fraction, message)
+        if should_cancel and should_cancel():
+            raise InterruptedError("Cancelled")
+
+    if options.method not in NOISE_METHODS:
+        raise ValueError(f"Unknown method {options.method!r}; use one of {NOISE_METHODS}")
+
+    step(0.03, "Reading point cloud")
+    las = laspy.read(path)
+    _resolve_crs(las.header, options.crs)
+    classification = np.asarray(las.classification).astype(np.int64)
+    candidate = ~np.isin(classification, NOISE_CLASSES)
+    index = np.nonzero(candidate)[0]
+    if index.size < options.neighbours + 2:
+        raise ValueError("The cloud has too few points to look for noise in.")
+    # Local coordinates keep the neighbour search exact at map coordinates.
+    xyz = np.column_stack([
+        np.asarray(las.x, dtype=np.float64)[index] - float(las.header.x_min),
+        np.asarray(las.y, dtype=np.float64)[index] - float(las.header.y_min),
+        np.asarray(las.z, dtype=np.float64)[index],
+    ])
+
+    step(0.2, "Indexing neighbours")
+    tree = cKDTree(xyz)
+    k = max(2, int(options.neighbours))
+    step(0.4, "Measuring neighbourhoods")
+    distance, _ = tree.query(xyz, k=k + 1, workers=-1)
+    if options.method == "statistical":
+        mean_distance = distance[:, 1:].mean(axis=1)
+        limit = mean_distance.mean() + options.std_ratio * mean_distance.std()
+        noise = mean_distance > limit
+    else:
+        counts = tree.query_ball_point(xyz, r=options.radius, return_length=True, workers=-1) - 1
+        noise = counts < options.min_neighbours
+
+    step(0.8, "Labelling points")
+    # Low or high is judged against the lowest surface of the real points
+    # around it, not against its neighbours: a flock of birds has only other
+    # birds for neighbours.
+    real = ~noise
+    cell = 2.0
+    bounds = _snapped_bounds(xyz[:, 0], xyz[:, 1], cell)
+    floor, _ = _bin_points(xyz[real, 0], xyz[real, 1], xyz[real, 2], bounds, cell, "minimum", 2.0)
+    floor = _fill_all(floor)
+    below = xyz[:, 2] < _sample_grid(floor, bounds, cell, xyz[:, 0], xyz[:, 1])
+    updated = classification.copy()
+    updated[index[noise & below]] = 7
+    updated[index[noise & ~below]] = 18
+    las.classification = updated.astype(np.asarray(las.classification).dtype)
+
+    step(0.92, "Writing point cloud")
+    Path(options.output_path).parent.mkdir(parents=True, exist_ok=True)
+    las.write(options.output_path)
+    step(1.0, "Complete")
+    return {
+        "outputPath": options.output_path,
+        "method": options.method,
+        "pointsTotal": int(classification.size),
+        "noisePoints": int(noise.sum()),
+        "lowNoisePoints": int((noise & below).sum()),
+        "highNoisePoints": int((noise & ~below).sum()),
+        "noiseFraction": float(noise.sum() / max(classification.size, 1)),
+    }
+
+
+# -- looking at a cloud -----------------------------------------------------
+
+# Colours for drawing classes, shared with the interface.
+CLASS_COLOURS = {
+    0: "#8a9299", 1: "#b6bec4", 2: "#b5895a", 3: "#9fd67a", 4: "#58b858", 5: "#1f7a4d",
+    6: "#d9534f", 7: "#ff3df2", 8: "#f0c75e", 9: "#3f8fd2", 10: "#7a5c3e", 11: "#5d6670",
+    12: "#e0b45c", 13: "#ffb347", 14: "#ff8c42", 15: "#c9725b", 17: "#8e7cc3", 18: "#ff3df2",
+}
+
+_cloud_cache: dict = {}
+
+
+def _cached_cloud(path: str):
+    """The last cloud read, kept while its file is unchanged: drawing sections
+    one after another must not re-read a large file each time."""
+    import laspy
+
+    resolved = str(Path(path).resolve())
+    stamp = Path(resolved).stat().st_mtime_ns
+    entry = _cloud_cache.get(resolved)
+    if entry and entry[0] == stamp:
+        return entry[1]
+    las = laspy.read(resolved)
+    cloud = {
+        "x": np.asarray(las.x, dtype=np.float64),
+        "y": np.asarray(las.y, dtype=np.float64),
+        "z": np.asarray(las.z, dtype=np.float64),
+        "classification": np.asarray(las.classification).astype(np.int16),
+        "return_number": np.asarray(las.return_number).astype(np.int16),
+        "number_of_returns": np.asarray(las.number_of_returns).astype(np.int16),
+    }
+    _cloud_cache.clear()
+    _cloud_cache[resolved] = (stamp, cloud)
+    return cloud
+
+
+def _ramp(values: np.ndarray) -> np.ndarray:
+    """Low to high as deep blue, teal, green, yellow, white."""
+    stops = np.array([[24, 40, 92], [23, 145, 127], [111, 208, 112], [240, 200, 80], [250, 250, 245]], float)
+    position = np.clip(values, 0, 1) * (len(stops) - 1)
+    lower = np.floor(position).astype(int).clip(0, len(stops) - 2)
+    t = (position - lower)[..., None]
+    return (stops[lower] * (1 - t) + stops[lower + 1] * t).astype(np.uint8)
+
+
+def _hex(colour: str) -> tuple:
+    return tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def overview(path: str, size: int = 1024, colour: str = "height") -> dict:
+    """A top-down picture of the cloud to draw section lines on.
+
+    Each pixel shows the highest point in it, by height or by class, shaded
+    so that trees and buildings stand out from the ground.
+    """
+    import base64
+    import io
+
+    from PIL import Image
+
+    cloud = _cached_cloud(path)
+    keep = ~np.isin(cloud["classification"], NOISE_CLASSES)
+    xs, ys, zs = cloud["x"][keep], cloud["y"][keep], cloud["z"][keep]
+    classes = cloud["classification"][keep]
+    west, south, east, north = float(xs.min()), float(ys.min()), float(xs.max()), float(ys.max())
+    # Pixels no finer than about two point spacings, or most of them are empty.
+    spacing = math.sqrt(max((east - west) * (north - south), 1e-9) / max(xs.size, 1))
+    cell = max(max(east - west, north - south) / size, 2.0 * spacing) or 1.0
+    bounds = (west, south, west + math.ceil((east - west) / cell) * cell,
+              south + math.ceil((north - south) / cell) * cell)
+    height, width = _grid_shape(bounds, cell)
+    cols = np.clip(((xs - bounds[0]) / cell).astype(np.int64), 0, width - 1)
+    rows = np.clip(((bounds[3] - ys) / cell).astype(np.int64), 0, height - 1)
+    flat = rows * width + cols
+    order = np.lexsort((-zs, flat))
+    first = np.ones(order.size, dtype=bool)
+    first[1:] = flat[order][1:] != flat[order][:-1]
+    top = order[first]
+    grid = np.full(height * width, np.nan)
+    grid[flat[top]] = zs[top]
+    grid = grid.reshape(height, width)
+    class_grid = np.zeros(height * width, dtype=np.int64)
+    class_grid[flat[top]] = classes[top]
+    class_grid = class_grid.reshape(height, width)
+    # Close single-pixel gaps from the nearest filled pixel.
+    from scipy.ndimage import distance_transform_edt
+
+    empty = ~np.isfinite(grid)
+    if empty.any() and (~empty).any():
+        distance, (near_r, near_c) = distance_transform_edt(empty, return_indices=True)
+        close = empty & (distance <= 1.5)
+        grid[close] = grid[near_r[close], near_c[close]]
+        class_grid[close] = class_grid[near_r[close], near_c[close]]
+    filled = np.isfinite(grid)
+
+    rgb = np.zeros((height, width, 3), dtype=np.uint8)
+    if colour == "class":
+        palette = np.zeros((256, 3), dtype=np.uint8)
+        palette[:] = _hex("#b6bec4")
+        for code, value in CLASS_COLOURS.items():
+            palette[code] = _hex(value)
+        rgb = palette[class_grid.clip(0, 255)]
+    else:
+        low, high = np.nanpercentile(grid, [2, 98]) if filled.any() else (0.0, 1.0)
+        rgb = _ramp((np.nan_to_num(grid, nan=low) - low) / max(high - low, 1e-6))
+
+    # A light hillshade, so relief reads in either colouring.
+    smooth = np.where(filled, grid, np.nanmedian(grid) if filled.any() else 0.0)
+    dy, dx = np.gradient(smooth, cell)
+    shade = np.clip(0.75 + 0.25 * (-dx - dy) / np.sqrt(1 + dx * dx + dy * dy), 0.45, 1.0)
+    rgb = (rgb * shade[..., None]).astype(np.uint8)
+    alpha = np.where(filled, 255, 0).astype(np.uint8)
+    image = Image.fromarray(np.dstack([rgb, alpha]), "RGBA")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return {
+        "image": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode(),
+        "bounds": list(bounds),
+        "width": width,
+        "height": height,
+        "cellSize": cell,
+        "elevationRange": [float(np.nanmin(grid)), float(np.nanmax(grid))] if filled.any() else [0, 0],
+    }
+
+
+def section(path: str, start: Sequence[float], end: Sequence[float], width: float = 2.0,
+            max_points: int = 150_000) -> dict:
+    """The points in a corridor between two map points, seen from the side.
+
+    Each point comes back with its index in the file, so points labelled in
+    this view can be found again for training.
+    """
+    cloud = _cached_cloud(path)
+    sx, sy = float(start[0]), float(start[1])
+    ex, ey = float(end[0]), float(end[1])
+    length = math.hypot(ex - sx, ey - sy)
+    if length <= 0:
+        raise ValueError("A section needs two different end points.")
+    ux, uy = (ex - sx) / length, (ey - sy) / length
+    dx, dy = cloud["x"] - sx, cloud["y"] - sy
+    along = dx * ux + dy * uy
+    across = -dx * uy + dy * ux
+    inside = np.nonzero((np.abs(across) <= width / 2) & (along >= 0) & (along <= length))[0]
+    total = int(inside.size)
+    if inside.size > max_points:
+        # An even thinning that a repeated request reproduces exactly.
+        inside = inside[np.linspace(0, inside.size - 1, max_points).astype(np.int64)]
+    order = np.argsort(along[inside])
+    inside = inside[order]
+    return {
+        "length": length,
+        "width": width,
+        "total": total,
+        "shown": int(inside.size),
+        "index": inside.tolist(),
+        "along": np.round(along[inside], 3).tolist(),
+        "z": np.round(cloud["z"][inside], 3).tolist(),
+        "classification": cloud["classification"][inside].tolist(),
+        "returnNumber": cloud["return_number"][inside].tolist(),
+        "numberOfReturns": cloud["number_of_returns"][inside].tolist(),
+    }
+
+
 HEIGHT_METHODS = ("highest", "pit_free")
 
 
@@ -517,7 +785,8 @@ class HeightOptions:
     dtm_path: Optional[str] = None       # ground from this raster instead of class 2
     ground_cell_size: float = 1.0        # m, of the DTM made from class 2
     max_height: Optional[float] = None   # drop points higher than this above ground
-    pit_free_thresholds: Sequence[float] = (0.0, 2.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0)
+    pit_free_thresholds: Optional[Sequence[float]] = None  # m; None: every 2.5 m from the ground up
+    pit_free_step: float = 2.5
     pit_free_max_edge: Optional[float] = None  # m, longest triangle edge above the first layer;
                                                # None: five times the point spacing, at least 1 m
     void_fill: str = "linear"
@@ -693,7 +962,12 @@ def height_above_ground(
         _, occupied = _bin_points(tx, ty, th, bounds, cell, "maximum", 2.0)
         spacing = math.sqrt(occupied.sum() * cell * cell / max(th.size, 1))
         max_edge = options.pit_free_max_edge or max(1.0, 5.0 * spacing)
-        layers = sorted({0.0, *[float(t) for t in options.pit_free_thresholds]})
+        # The published ladder (0, 2, 5, 10, 15 m...) leaves pits up to a step
+        # deep wherever a return lands inside a crown; a step of 2.5 m closed
+        # them in testing for about 15% more time.
+        ladder = (options.pit_free_thresholds if options.pit_free_thresholds is not None
+                  else np.arange(0.0, float(th.max()), options.pit_free_step))
+        layers = sorted({0.0, *[float(t) for t in ladder]})
         layers = [t for t in layers if t == 0.0 or t < th.max()]
         grid = np.full(_grid_shape(bounds, cell), np.nan)
         for index, threshold in enumerate(layers):

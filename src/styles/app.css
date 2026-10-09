@@ -3210,3 +3210,128 @@ kbd {
   0% { box-shadow: 0 0 0 2px var(--accent); }
   100% { box-shadow: 0 0 0 2px transparent; }
 }
+
+/* -- point cloud: plan above, side-on section below ------------------------ */
+.cloudview {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 2px;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--rule-strong);   /* the divider between plan and section */
+}
+
+.cloudview__plan,
+.cloudview__section {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--well);
+}
+
+.cloudview__plan { cursor: crosshair; touch-action: none; }
+.cloudview__plan img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  user-select: none;
+  pointer-events: none;
+}
+.cloudview__overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cloudview__line { stroke: var(--accent-bright); stroke-width: 2; stroke-dasharray: 6 4; }
+.cloudview__end { fill: var(--accent-bright); stroke: var(--well); stroke-width: 1.5; }
+.cloudview__spot { cursor: pointer; }
+.cloudview__spot circle { fill: var(--signal-warn); stroke: var(--well); stroke-width: 1.5; }
+.cloudview__spot text {
+  fill: var(--ink-inverse);
+  font: 700 10px var(--font-data);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.cloudview__section canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.cloudview__box {
+  position: absolute;
+  border: 1.5px solid var(--accent-bright);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  pointer-events: none;
+}
+.cloudview__box--clear { border-color: var(--signal-bad); border-style: dashed; background: transparent; }
+
+.cloudview__empty,
+.cloudview__hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  color: var(--ink-faint);
+  font-size: var(--type-small);
+  pointer-events: none;
+}
+.cloudview__hint { inset: auto 0 var(--step-3) 0; }
+
+.cloudview__status {
+  position: absolute;
+  left: var(--step-3);
+  bottom: var(--step-2);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--type-micro);
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  pointer-events: none;
+}
+
+.cloudview__brush {
+  gap: 6px;
+  padding: 4px 9px;
+  font-size: var(--type-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+.cloudview__brush i,
+.swatch-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.toolgroup__label { padding: 0 6px; font-size: var(--type-micro); color: var(--ink-faint); }
+
+/* Classes to label with: compact chips, the active one lit. */
+.label-picker { display: flex; flex-wrap: wrap; gap: 4px; }
+.label-picker__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-small);
+  color: var(--ink-soft);
+  background: var(--surface-sunk);
+  cursor: pointer;
+}
+.label-picker__item:hover { border-color: var(--rule-bright); color: var(--ink); }
+.label-picker__item--on { border-color: var(--accent); color: var(--ink); background: var(--accent-wash); }
+.label-picker__item input { width: 12px; height: 12px; margin: 0; }
+.label-picker__item .dim { font-family: var(--font-data); font-size: var(--type-micro); }
+
+/* A figure at the end of a row, such as a class's recall. */
+.row__value {
+  flex: none;
+  font-family: var(--font-data);
+  font-size: var(--type-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

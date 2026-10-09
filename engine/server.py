@@ -51,7 +51,7 @@ from fiducia import camera as camera_mod
 from fiducia import (
     auto_control, stereo_dem, exchange, geodesy, mosaic, fiducial_detection, satellite_rpc,
     ortho, certificate_reader, raster, reports, lidar, terrain, classic_report, tiepoints,
-    placement,
+    placement, lidar_learn,
 )
 from fiducia import bundle as bundle_module
 from fiducia.bundle import BundleInput, Observation, adjust_block, corner_uncertainty
@@ -396,6 +396,7 @@ def reference() -> dict:
         "cellAssignment": list(lidar.CELL_ASSIGNMENT),
         "voidFill": list(lidar.VOID_FILL),
         "heightMethods": list(lidar.HEIGHT_METHODS),
+        "lidarClassColours": {str(k): v for k, v in lidar.CLASS_COLOURS.items()},
     }
 
 
@@ -3602,8 +3603,11 @@ def lidar_classify_ground(payload: dict = Body(...)) -> dict:
     def work(progress, should_cancel):
         result = lidar.classify_ground(source, options, progress, should_cancel)
 
+        _carry_labels(project, source, result["outputPath"])
+
         def apply(state: dict) -> None:
             state.setdefault("lidarClouds", []).append({
+                "kind": "ground",
                 "source": source,
                 "outputPath": result["outputPath"],
                 "groundFraction": result["groundFraction"],
@@ -3658,6 +3662,169 @@ def lidar_height(payload: dict = Body(...)) -> dict:
         return result
 
     job = jobs.submit("lidar", f"Measuring heights in {Path(source).name}", work)
+    return {"job": job.to_dict()}
+
+
+def _labels_path(project, cloud: str) -> Path:
+    """Where the labels for one cloud live inside the project."""
+    import hashlib
+
+    key = hashlib.sha1(str(Path(cloud).resolve()).lower().encode()).hexdigest()[:16]
+    return project.directory / "lidar-labels" / f"{Path(cloud).stem}-{key}.json"
+
+
+def _read_labels(project, cloud: str) -> dict:
+    path = _labels_path(project, cloud)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("labels", {})
+    except Exception:
+        return {}
+
+
+def _write_labels(project, cloud: str, labels: dict) -> None:
+    path = _labels_path(project, cloud)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps({"cloud": str(Path(cloud).resolve()), "labels": labels}),
+                         encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def _carry_labels(project, source: str, derived: str) -> None:
+    """A derived cloud keeps every point in the same order, so its source's
+    labels still apply to it."""
+    labels = _read_labels(project, source)
+    if labels and not _read_labels(project, derived):
+        _write_labels(project, derived, labels)
+
+
+def _new_cloud_path(project, source: str, suffix: str) -> str:
+    stem = Path(source).stem
+    for ending in ("_ground", "_denoised", "_classified"):
+        if stem.endswith(ending):
+            stem = stem[: -len(ending)]
+    return str(project.outputs_dir / f"{stem}{suffix}{Path(source).suffix.lower() or '.laz'}")
+
+
+@app.post("/lidar/noise")
+def lidar_noise(payload: dict = Body(...)) -> dict:
+    project = require_project()
+    source = payload["path"]
+    options = lidar.NoiseOptions(
+        output_path=payload.get("outputPath") or _new_cloud_path(project, source, "_denoised"),
+        method=payload.get("method", "statistical"),
+        neighbours=int(payload.get("neighbours", 8)),
+        std_ratio=float(payload.get("stdRatio", 2.5)),
+        radius=float(payload.get("radius", 2.0)),
+        min_neighbours=int(payload.get("minNeighbours", 3)),
+        crs=payload.get("crs") or (project.state.get("projection") or {}).get("output"),
+    )
+
+    def work(progress, should_cancel):
+        result = lidar.filter_noise(source, options, progress, should_cancel)
+        _carry_labels(project, source, result["outputPath"])
+
+        def apply(state: dict) -> None:
+            state.setdefault("lidarClouds", []).append({
+                "kind": "noise",
+                "source": source,
+                "outputPath": result["outputPath"],
+                "method": result["method"],
+                "noisePoints": result["noisePoints"],
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+
+        project.mutate("lidar_noise", apply)
+        broadcast({"type": "project.changed", "operation": "lidar_noise"})
+        return result
+
+    job = jobs.submit("lidar", f"Looking for noise in {Path(source).name}", work)
+    return {"job": job.to_dict()}
+
+
+@app.post("/lidar/overview")
+def lidar_overview(payload: dict = Body(...)) -> dict:
+    try:
+        return clean(lidar.overview(payload["path"], int(payload.get("size", 1024)),
+                                    payload.get("colour", "height")))
+    except Exception as exc:
+        raise HTTPException(400, f"Could not draw the point cloud: {exc}") from exc
+
+
+@app.post("/lidar/section")
+def lidar_section(payload: dict = Body(...)) -> dict:
+    try:
+        result = lidar.section(payload["path"], payload["start"], payload["end"],
+                               float(payload.get("width", 2.0)), int(payload.get("maxPoints", 150_000)))
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if _current is not None:
+        labels = _read_labels(_current, payload["path"])
+        result["labels"] = {str(i): labels[str(i)] for i in result["index"] if str(i) in labels}
+    return result
+
+
+@app.get("/lidar/labels")
+def lidar_labels(path: str) -> dict:
+    project = require_project()
+    labels = _read_labels(project, path)
+    counts: dict = {}
+    for code in labels.values():
+        counts[str(code)] = counts.get(str(code), 0) + 1
+    return {"count": len(labels), "byClass": counts}
+
+
+@app.post("/lidar/labels")
+def lidar_set_labels(payload: dict = Body(...)) -> dict:
+    """Add, change or clear labels: {path, set: {index: class}, clear: [index], clearAll}."""
+    project = require_project()
+    path = payload["path"]
+    labels = {} if payload.get("clearAll") else _read_labels(project, path)
+    for index, code in (payload.get("set") or {}).items():
+        labels[str(int(index))] = int(code)
+    for index in payload.get("clear") or []:
+        labels.pop(str(int(index)), None)
+    _write_labels(project, path, labels)
+    return lidar_labels(path)
+
+
+@app.post("/lidar/learn")
+def lidar_learn_endpoint(payload: dict = Body(...)) -> dict:
+    project = require_project()
+    source = payload["path"]
+    labels = _read_labels(project, source)
+    change = payload.get("changeClasses")
+    options = lidar_learn.LearnOptions(
+        output_path=payload.get("outputPath") or _new_cloud_path(project, source, "_classified"),
+        trees=int(payload.get("trees", 40)),
+        change_classes=[int(c) for c in change] if change else None,
+        min_confidence=float(payload.get("minConfidence", 0.0)),
+        crs=payload.get("crs") or (project.state.get("projection") or {}).get("output"),
+    )
+
+    def work(progress, should_cancel):
+        result = lidar_learn.train_and_apply(source, labels, options, progress, should_cancel)
+        if Path(result["outputPath"]).resolve() != Path(source).resolve():
+            _write_labels(project, result["outputPath"], labels)
+
+        def apply(state: dict) -> None:
+            state.setdefault("lidarClouds", []).append({
+                "kind": "learned",
+                "source": source,
+                "outputPath": result["outputPath"],
+                "pointsChanged": result["pointsChanged"],
+                "accuracy": result["accuracy"],
+                "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+            state["lidarLearning"] = {k: v for k, v in result.items() if k != "confusion"}
+
+        project.mutate("lidar_learn", apply)
+        broadcast({"type": "project.changed", "operation": "lidar_learn"})
+        return result
+
+    job = jobs.submit("lidar", f"Learning classes for {Path(source).name}", work)
     return {"job": job.to_dict()}
 
 

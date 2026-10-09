@@ -94,7 +94,8 @@ add(on_roof, ground[on_roof] + roof[on_roof] + rng.normal(0, 0.03, on_roof.sum()
 in_tree = (top > 0) & (roof == 0)
 k = in_tree.sum()
 deep = rng.random(k) < 0.35
-depth = np.where(deep, rng.uniform(0.3, 0.8, k), rng.uniform(0, 0.15 / np.maximum(top[in_tree], 1), k))
+# A deep return still lands in the crown, on foliage or a branch below its surface.
+depth = np.where(deep, rng.uniform(0.1, 0.35, k), rng.uniform(0, 0.15 / np.maximum(top[in_tree], 1), k))
 first_z = ground[in_tree] + top[in_tree] * (1 - depth)
 reaches_ground = rng.random(k) < 0.55
 last_z = np.where(reaches_ground, ground[in_tree] + rng.normal(0, 0.03, k),
@@ -254,7 +255,163 @@ check("class and return filters apply", np.isfinite(vegetation_only).mean() < np
 
 
 # ---------------------------------------------------------------------------
-print("\n=== 3. Through the engine, as the interface does it ===")
+print("\n=== 3. Noise ===")
+for method in ("statistical", "isolated"):
+    path = work / f"forest_{method}.laz"
+    info = lidar.filter_noise(str(classified), lidar.NoiseOptions(output_path=str(path), method=method))
+    labels_n = np.asarray(laspy.read(path).classification)
+    birds = (labels_n[TRUTH == 3] == 18).mean()
+    real = np.isin(TRUTH, (0, 1))
+    false_alarm = np.isin(labels_n[real], (7, 18)).mean()
+    check(f"{method}: birds labelled high noise", birds >= 0.9, f"{birds:.0%} of 60")
+    check(f"{method}: real points left alone", false_alarm <= 0.005, f"{false_alarm:.2%} labelled noise")
+check("noise filter keeps earlier labels", (labels_n[labels == 2] == 2).mean() > 0.99
+      and (labels_n[TRUTH == 2] == 7).mean() > 0.9)
+
+
+# ---------------------------------------------------------------------------
+print("\n=== 4. Looking at the cloud ===")
+view = lidar.overview(str(classified), size=256, colour="class")
+check("overview image", view["image"].startswith("data:image/png;base64,") and view["width"] <= 256)
+cut = lidar.section(str(classified), (WEST + 10, SOUTH + 120), (WEST + 230, SOUTH + 120), width=2.0)
+along_ok = np.all(np.diff(cut["along"]) >= 0) and 0 <= min(cut["along"]) and max(cut["along"]) <= cut["length"]
+idx = np.array(cut["index"])
+check("section holds the corridor's points", cut["total"] > 1000 and along_ok
+      and np.all(np.abs(Y[idx] - (SOUTH + 120)) <= 1.001), f"{cut['total']:,} points along {cut['length']:.0f} m")
+check("section points keep their file numbers", np.allclose(np.array(cut["z"]), Z[idx], atol=0.002))
+
+
+# ---------------------------------------------------------------------------
+print("\n=== 5. Classes learned from labels ===")
+from fiducia import lidar_learn  # noqa: E402
+
+# What each point really is: ground, understorey (last returns off the
+# ground), canopy (first returns, deep or not), buildings.
+first = RN == 1
+truth_class = np.full(X.size, 1)
+truth_class[TRUTH == 0] = 2
+truth_class[(TRUTH == 1) & ~first] = 3
+truth_class[(TRUTH == 1) & first] = 5
+truth_class[on_roofs] = 6
+real = np.isin(TRUTH, (0, 1))
+
+# The operator brushes everything in two sections, one through the trees and
+# one through the buildings: a few minutes' labelling.
+strips = (np.abs(Y - (SOUTH + 120)) <= 1.0) | (np.abs(X - (WEST + 175)) <= 1.0)
+labelled = np.nonzero(strips & real)[0]
+user_labels = {int(i): int(truth_class[i]) for i in labelled}
+print(f"  {len(user_labels):,} points labelled in two sections ({len(user_labels) / X.size:.1%} of the cloud)")
+learned = work / "forest_learned.laz"
+report = lidar_learn.train_and_apply(str(classified), user_labels,
+                                     lidar_learn.LearnOptions(output_path=str(learned)))
+result_classes = np.asarray(laspy.read(learned).classification)
+unseen = real & ~strips
+accuracy = (result_classes[unseen] == truth_class[unseen]).mean()
+check("learned classes on unseen points", accuracy >= 0.9, f"{accuracy:.1%} correct on {unseen.sum():,} points")
+for code, name in ((2, "ground"), (3, "understorey"), (5, "canopy"), (6, "buildings")):
+    mine = unseen & (truth_class == code)
+    recall = (result_classes[mine] == code).mean()
+    check(f"  {name} recovered", recall >= 0.85, f"{recall:.1%}")
+check("out-of-bag estimate is honest", abs(report["accuracy"] - accuracy) <= 0.06,
+      f"estimated {report['accuracy']:.1%}, measured {accuracy:.1%}")
+check("labelled points keep their labels",
+      all(result_classes[i] == c for i, c in list(user_labels.items())[:2000]))
+check("noise is not relabelled", (result_classes[TRUTH == 2] == 7).mean() > 0.9)
+check("uncertain spots offered", 1 <= len(report["uncertainSpots"]) <= 8,
+      f"{len(report['uncertainSpots'])} spots, lowest confidence {report['uncertainSpots'][0]['confidence']:.2f}")
+print("  most telling measurements: " + ", ".join(i["feature"] for i in report["importance"][:4]))
+
+# The harder case: stray returns in the canopy column, with the same return
+# pattern as real canopy hits. Returns do not give them away; where they sit
+# and the shape of their neighbourhood can. Those that land inside a crown
+# are indistinguishable from a real deep hit by any method, so a share of
+# them is expected to be missed.
+print("  -- stray returns inside dense crowns --")
+n_stray = 4000
+pick = rng.choice(np.nonzero(in_tree)[0], n_stray)
+stray_x = px[pick] + rng.normal(0, 0.3, n_stray)
+stray_y = py[pick] + rng.normal(0, 0.3, n_stray)
+stray_z = terrain(stray_x, stray_y) + rng.uniform(1.0, top[pick])  # anywhere in the canopy column
+noisy = laspy.read(classified)
+base = len(noisy.x)
+extra = laspy.ScaleAwarePointRecord.zeros(n_stray, header=noisy.header)
+extra.x, extra.y, extra.z = stray_x, stray_y, stray_z
+extra.return_number, extra.number_of_returns = np.ones(n_stray, int), np.full(n_stray, 2)
+noisy_path = work / "forest_stray.laz"
+with laspy.open(noisy_path, mode="w", header=noisy.header) as writer:
+    writer.write_points(noisy.points)
+    writer.write_points(extra)
+truth_noisy = np.concatenate([truth_class, np.full(n_stray, 18)])
+truth_noisy[np.nonzero(TRUTH == 2)[0]] = 7
+truth_noisy[np.nonzero(TRUTH == 3)[0]] = 18
+SX, SY = np.concatenate([X, stray_x]), np.concatenate([Y, stray_y])
+strips_n = (np.abs(SY - (SOUTH + 120)) <= 1.0) | (np.abs(SX - (WEST + 175)) <= 1.0)
+stray_labels = {int(i): int(truth_noisy[i]) for i in np.nonzero(strips_n & (truth_noisy != 7))[0]}
+print(f"  {sum(v == 18 for v in stray_labels.values())} stray returns among "
+      f"{len(stray_labels):,} labelled points")
+stray_out = work / "forest_stray_learned.laz"
+stray_report = lidar_learn.train_and_apply(str(noisy_path), stray_labels,
+                                           lidar_learn.LearnOptions(output_path=str(stray_out)))
+got = np.asarray(laspy.read(stray_out).classification)
+unseen_n = ~strips_n
+stray_unseen = unseen_n & (np.arange(got.size) >= base)
+canopy_unseen = unseen_n & (truth_noisy == 5)
+found_stray = (got[stray_unseen] == 18).mean()
+lost_canopy = (got[canopy_unseen] == 18).mean()
+# Strays in the open column under the crowns can be told apart; those inside
+# a crown look exactly like a real deep hit, so they are only reported.
+stray_rel = np.concatenate([np.zeros(base), stray_z - terrain(stray_x, stray_y)])
+crown_floor = np.concatenate([np.zeros(base), 0.6 * top[pick]])
+in_air = stray_unseen & (stray_rel < crown_floor)
+in_crown = stray_unseen & (stray_rel >= crown_floor)
+found_air = (got[in_air] == 18).mean()
+print(f"  first round: {found_air:.1%} of {in_air.sum()} unseen strays below the crowns found; "
+      f"inside crowns {(got[in_crown] == 18).mean():.1%} (they look like real hits)")
+
+# Second round, as the operator would: a section through each spot the
+# forest was least sure of, labelled, and train again.
+more = np.zeros(SX.size, dtype=bool)
+for spot in stray_report["uncertainSpots"]:
+    more |= (np.abs(SY - spot["y"]) <= 1.0) & (np.abs(SX - spot["x"]) <= 15.0)
+round_two = dict(stray_labels)
+round_two.update({int(i): int(truth_noisy[i]) for i in np.nonzero(more & (truth_noisy != 7))[0]})
+seen = strips_n | more
+stray_out2 = work / "forest_stray_learned2.laz"
+lidar_learn.train_and_apply(str(noisy_path), round_two, lidar_learn.LearnOptions(output_path=str(stray_out2)))
+got2 = np.asarray(laspy.read(stray_out2).classification)
+in_air2 = in_air & ~seen
+found_air2 = (got2[in_air2] == 18).mean()
+lost_canopy2 = (got2[canopy_unseen & ~seen] == 18).mean()
+open_air = in_air2 & (stray_rel > 3.5)
+found_open = (got2[open_air] == 18).mean()
+check("second round finds strays in the open air under the crowns", found_open >= 0.85,
+      f"{found_open:.1%} of {open_air.sum()} unseen, after {len(round_two) - len(stray_labels):,} more labels "
+      f"in {len(stray_report['uncertainSpots'])} sections (first round {found_air:.1%} of all below the crowns)")
+check("and still keeps the real canopy", lost_canopy2 <= 0.03, f"{lost_canopy2:.2%} called noise")
+print(f"  among the understorey (1-3.5 m), where strays mix with real returns: "
+      f"{(got2[in_air2 & (stray_rel <= 3.5)] == 18).mean():.1%} found")
+noise_row = next(c for c in stray_report["classes"] if c["class"] == 18)
+check("report gives the noise class its own recall", 0 <= noise_row["recall"] <= 1,
+      f"out-of-bag recall {noise_row['recall']:.1%}, precision {noise_row['precision']:.1%}")
+check("real canopy kept", lost_canopy <= 0.03, f"{lost_canopy:.2%} of unseen canopy called noise")
+print(f"  out-of-bag estimate {stray_report['accuracy']:.1%}; most telling: "
+      + ", ".join(i["feature"] for i in stray_report["importance"][:4]))
+
+only = work / "forest_only.laz"
+lidar_learn.train_and_apply(str(classified), user_labels,
+                            lidar_learn.LearnOptions(output_path=str(only), change_classes=[2]))
+only_classes = np.asarray(laspy.read(only).classification)
+untouched = ~np.isin(labels, [2]) & ~np.isin(np.arange(X.size), labelled)
+check("only the chosen classes change", (only_classes[untouched] == labels[untouched]).all())
+try:
+    lidar_learn.train_and_apply(str(classified), {1: 2, 2: 2}, lidar_learn.LearnOptions(output_path=str(work / "y.laz")))
+    check("one class gives a clear error", False)
+except ValueError as exc:
+    check("one class gives a clear error", "two classes" in str(exc))
+
+
+# ---------------------------------------------------------------------------
+print("\n=== 6. Through the engine, as the interface does it ===")
 import json  # noqa: E402
 import os  # noqa: E402
 import subprocess  # noqa: E402
@@ -306,6 +463,36 @@ try:
     check("height job runs and is recorded", job["status"] == "done" and bool(outputs)
           and outputs[-1]["kind"] == "height" and Path(outputs[-1]["outputPath"]).exists(),
           job.get("error") or f"max {outputs[-1]['maxHeight']:.1f} m")
+
+    ground_cloud = clouds[0]["outputPath"]
+    view = call("POST", "/lidar/overview", {"path": ground_cloud, "colour": "height"})
+    line = {"path": ground_cloud, "start": [WEST + 10, SOUTH + 120], "end": [WEST + 230, SOUTH + 120], "width": 2}
+    cut = call("POST", "/lidar/section", line)
+    check("overview and section served", view["image"].startswith("data:image/png") and cut["total"] > 1000)
+
+    # Label through the API as the side view does, then train.
+    picked = np.array(cut["index"])
+    call("POST", "/lidar/labels", {"path": ground_cloud,
+                                   "set": {str(i): int(c) for i, c in zip(picked, truth_class[picked])}})
+    counts = call("GET", f"/lidar/labels?path={request.quote(ground_cloud)}")
+    returned = call("POST", "/lidar/section", line)["labels"]
+    check("labels saved and returned with the section", counts["count"] == picked.size
+          and len(returned) == picked.size, f"{counts['count']:,} labels, {counts['byClass']}")
+
+    job = wait_for_job(call("POST", "/lidar/noise", {"path": ground_cloud})["job"]["id"])
+    clouds = call("GET", "/project")["state"]["lidarClouds"]
+    denoised = clouds[-1]["outputPath"]
+    carried = call("GET", f"/lidar/labels?path={request.quote(denoised)}")["count"]
+    check("noise job runs and labels follow the new cloud", job["status"] == "done"
+          and clouds[-1]["kind"] == "noise" and carried == picked.size,
+          job.get("error") or f"{clouds[-1]['noisePoints']} noise points, {carried:,} labels carried")
+
+    job = wait_for_job(call("POST", "/lidar/learn", {"path": denoised})["job"]["id"], timeout=600)
+    state = call("GET", "/project")["state"]
+    check("training job runs and reports per class", job["status"] == "done"
+          and state["lidarClouds"][-1]["kind"] == "learned" and len(state["lidarLearning"]["classes"]) >= 3,
+          job.get("error") or f"{state['lidarClouds'][-1]['pointsChanged']:,} points changed, "
+          f"out-of-bag {state['lidarLearning']['accuracy']:.1%}")
 finally:
     server.terminate()
     server.wait(timeout=20)

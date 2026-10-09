@@ -4,6 +4,7 @@ import TitleBar from './components/TitleBar'
 import StepRail from './components/StepRail'
 import ImageViewer from './components/ImageViewer'
 import StereoView from './components/StereoView'
+import PointCloudView from './components/PointCloudView'
 import OutputViewer, { MosaicPreviewStage } from './components/OutputViewer'
 import Inspector from './components/Inspector'
 import JobBar from './components/JobBar'
@@ -29,10 +30,12 @@ export default function App() {
   const stereoPair = useStore((s) => s.stereoPair)
   const outputView = useStore((s) => s.outputView)
   const mosaicPreview = useStore((s) => s.mosaicPreview)
+  const lidarCloud = useStore((s) => s.lidarCloud)
   const showPair = activeStep === 'dem' && stereoPair
 
   // What the canvas shows: an output opened from its step, the mosaic preview
-  // while mosaicking, the stereo pair in Stereo DEM, otherwise the photos.
+  // while mosaicking, the stereo pair in Stereo DEM, the open point cloud in
+  // LiDAR, otherwise the photos.
   let canvas = <ImageViewer />
   if (outputView && outputView.step === activeStep) {
     canvas = <OutputViewer output={outputView} />
@@ -40,6 +43,8 @@ export default function App() {
     canvas = <MosaicPreviewStage />
   } else if (showPair) {
     canvas = <StereoView pair={stereoPair} />
+  } else if (activeStep === 'lidar' && lidarCloud) {
+    canvas = <PointCloudView key={lidarCloud} />
   }
 
   // Global keyboard. Every one of these exists because the equivalent on a

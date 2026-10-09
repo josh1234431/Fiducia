@@ -230,6 +230,11 @@ export const useStore = create((set, get) => ({
   loupe: readLoupe(),         // magnifier while measuring points; remembered per machine
   pendingPoint: null,         // { imageId, col, row }: a clicked point not yet accepted
   stereoPair: null,           // { leftId, rightId }: the pair shown side by side in Stereo DEM
+  lidarCloud: null,           // path of the point cloud open in the LiDAR step
+  lidarSection: null,         // { start: [x, y], end: [x, y], width }: the side view's corridor
+  lidarBrush: null,           // the class new labels get in the side view, or null to pan
+  lidarColour: 'height',      // how the point cloud view colours points: height, class or labels
+  lidarLabelsVersion: 0,      // bumped when labels change, so counts refresh
   viewRequest: null,          // { imageId, col, row, scale, token }: move any view of that photo there
   ...initialIntro,            // the first-launch introduction, and the page it opens on
   author: readAuthor(),
@@ -587,6 +592,9 @@ export const useStore = create((set, get) => ({
       clipDraft: null,
       pendingPoint: null,
       stereoPair: null,
+      lidarCloud: null,
+      lidarSection: null,
+      lidarBrush: null,
       outputView: null,
       mosaicPreview: null,
       poppedOut: [],
@@ -672,6 +680,13 @@ export const useStore = create((set, get) => ({
   setClipDraft: (clipDraft) => set({ clipDraft }),
   setPendingPoint: (pendingPoint) => set({ pendingPoint }),
   setStereoPair: (stereoPair) => set({ stereoPair }),
+  // A cloud made from the open one covers the same ground, so the section stays.
+  setLidarCloud: (lidarCloud, { keepSection = false } = {}) =>
+    set((state) => ({ lidarCloud, lidarSection: keepSection ? state.lidarSection : null })),
+  setLidarColour: (lidarColour) => set({ lidarColour }),
+  setLidarSection: (lidarSection) => set({ lidarSection }),
+  setLidarBrush: (lidarBrush) => set({ lidarBrush }),
+  bumpLidarLabels: () => set((state) => ({ lidarLabelsVersion: state.lidarLabelsVersion + 1 })),
 
   // -- outputs on the canvas --------------------------------------------
   //
