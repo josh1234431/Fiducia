@@ -809,6 +809,12 @@ td:first-child { color: var(--ink); font-weight: 600; }
         range and LAS version. If no coordinate system is declared, the project's output projection is assumed.
       </p>
       <p>
+        A cloud of any size can be opened. The first time it is opened it is indexed in the background (progress is in the
+        job bar): its points are sorted into tiles in the project's cache, and every tool then works a tile at a time, or
+        streams the file, so memory follows the tile rather than the cloud. A large survey takes longer than a small one but
+        needs about the same memory.
+      </p>
+      <p>
         The canvas shows the open cloud from above, coloured by height, class or labels. <strong>Drag across it</strong> to draw a
         section: the points within the chosen width of that line (1, 2, 5 or 10 m) appear side on below. Scroll to zoom
         (Shift or Ctrl for one axis), drag to pan and double-click to fit. Known noise and extreme strays are left out of the

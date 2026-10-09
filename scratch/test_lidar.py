@@ -19,7 +19,11 @@ from rasterio.transform import Affine
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "engine"))
 
-from fiducia import lidar  # noqa: E402
+from fiducia import lidar, lidar_tiles  # noqa: E402
+
+# Small tiles, so every tool works across many tile edges here. The engine
+# sizes them from free memory.
+lidar_tiles.TILE_POINTS = 60_000
 
 PASS, FAIL = [], []
 
@@ -271,8 +275,9 @@ check("noise filter keeps earlier labels", (labels_n[labels == 2] == 2).mean() >
 
 # ---------------------------------------------------------------------------
 print("\n=== 4. Looking at the cloud ===")
-view = lidar.overview(str(classified), size=256, colour="class")
-check("overview image", view["image"].startswith("data:image/png;base64,") and view["width"] <= 256)
+view = lidar.overview(str(classified), colour="class")
+check("overview image", view["image"].startswith("data:image/png;base64,") and view["width"] <= 1025,
+      f"{view['width']} x {view['height']} pixels of {view['cellSize']:.2f} m")
 cut = lidar.section(str(classified), (WEST + 10, SOUTH + 120), (WEST + 230, SOUTH + 120), width=2.0)
 along_ok = np.all(np.diff(cut["along"]) >= 0) and 0 <= min(cut["along"]) and max(cut["along"]) <= cut["length"]
 idx = np.array(cut["index"])
@@ -452,6 +457,19 @@ try:
         except Exception:
             time.sleep(0.5)
     call("POST", "/project/new", {"directory": str(work / "Lidar.fidu"), "name": "LiDAR"})
+
+    # The first look indexes in the background; the header comes back at once.
+    first_look = call("POST", "/lidar/inspect", {"path": str(source)})
+    deadline = time.time() + 120
+    summary = first_look
+    while summary.get("indexing") and time.time() < deadline:
+        time.sleep(0.5)
+        summary = call("POST", "/lidar/inspect", {"path": str(source)})
+    check("first look indexes in the background", first_look.get("indexing") is True
+          and first_look["pointCount"] == X.size and not summary.get("indexing")
+          and sum(v["count"] for v in summary["classHistogram"].values()) == X.size,
+          f"{summary['pointCount']:,} points counted, tiles in the project cache: "
+          f"{(work / 'Lidar.fidu' / 'cache' / 'lidar').exists()}")
     job = wait_for_job(call("POST", "/lidar/classify-ground", {"path": str(source)})["job"]["id"])
     clouds = call("GET", "/project")["state"].get("lidarClouds", [])
     check("ground job runs and is recorded", job["status"] == "done" and len(clouds) == 1

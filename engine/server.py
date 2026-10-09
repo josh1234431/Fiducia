@@ -3539,16 +3539,68 @@ def dem_extract(payload: dict = Body(...)) -> dict:
 # -- LiDAR -----------------------------------------------------------------
 
 
+def _lidar_cache() -> None:
+    """Keep point cloud tiles inside the open project, where they are cleaned up with it."""
+    from fiducia import lidar_tiles
+
+    lidar_tiles.set_cache_root(str(_current.cache_dir / "lidar") if _current is not None else None)
+
+
 @app.post("/lidar/inspect")
 def lidar_inspect(payload: dict = Body(...)) -> dict:
+    """A cloud's summary. The first look indexes the cloud, which can take
+    minutes for a large one, so it runs as a job and the header comes back
+    at once with indexing set; asking again gives the full summary."""
+    _lidar_cache()
+    from fiducia import lidar_tiles
+
+    path = payload["path"]
     try:
-        return clean(lidar.inspect_cloud(payload["path"]).to_dict())
+        if lidar_tiles.is_indexed(path):
+            return clean(lidar.inspect_cloud(path).to_dict())
+        header = lidar_tiles.header_of(path)
     except Exception as exc:
         raise HTTPException(400, f"Could not read point cloud: {exc}") from exc
+
+    key = str(Path(path).resolve()).lower()
+    if key not in _lidar_indexing:
+        def work(progress, should_cancel):
+            try:
+                lidar_tiles.TiledCloud(path, progress, should_cancel)
+            finally:
+                _lidar_indexing.discard(key)
+            return {"path": path}
+
+        _lidar_indexing.add(key)
+        jobs.submit("lidar", f"Indexing {Path(path).name}", work)
+    area = max((header.x_max - header.x_min) * (header.y_max - header.y_min), 1e-9)
+    crs = None
+    try:
+        parsed = header.parse_crs()
+        crs = parsed.to_string() if parsed is not None else None
+    except Exception:
+        pass
+    return clean({
+        "path": str(Path(path).resolve()),
+        "indexing": True,
+        "pointCount": int(header.point_count),
+        "bounds": [header.x_min, header.y_min, header.x_max, header.y_max],
+        "crs": crs,
+        "version": f"{header.version.major}.{header.version.minor}",
+        "pointFormat": int(header.point_format.id),
+        "classHistogram": {},
+        "returnHistogram": {},
+        "elevationRange": [header.z_min, header.z_max],
+        "averageSpacing": float((area / max(int(header.point_count), 1)) ** 0.5),
+    })
+
+
+_lidar_indexing: set = set()
 
 
 @app.post("/lidar/rasterize")
 def lidar_rasterize(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
     project = require_project()
     options = lidar.RasterizeOptions(
         output_path=payload.get("outputPath")
@@ -3585,6 +3637,7 @@ def lidar_rasterize(payload: dict = Body(...)) -> dict:
 
 @app.post("/lidar/classify-ground")
 def lidar_classify_ground(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
     project = require_project()
     source = payload["path"]
     stem = Path(source).stem
@@ -3625,6 +3678,7 @@ def lidar_classify_ground(payload: dict = Body(...)) -> dict:
 
 @app.post("/lidar/height")
 def lidar_height(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
     project = require_project()
     source = payload["path"]
     method = payload.get("method", "highest")
@@ -3710,6 +3764,7 @@ def _new_cloud_path(project, source: str, suffix: str) -> str:
 
 @app.post("/lidar/noise")
 def lidar_noise(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
     project = require_project()
     source = payload["path"]
     options = lidar.NoiseOptions(
@@ -3746,6 +3801,11 @@ def lidar_noise(payload: dict = Body(...)) -> dict:
 
 @app.post("/lidar/overview")
 def lidar_overview(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
+    from fiducia import lidar_tiles
+
+    if not lidar_tiles.is_indexed(payload["path"]):
+        raise HTTPException(409, "The point cloud is still being indexed")
     try:
         return clean(lidar.overview(payload["path"], int(payload.get("size", 1024)),
                                     payload.get("colour", "height")))
@@ -3755,6 +3815,11 @@ def lidar_overview(payload: dict = Body(...)) -> dict:
 
 @app.post("/lidar/section")
 def lidar_section(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
+    from fiducia import lidar_tiles
+
+    if not lidar_tiles.is_indexed(payload["path"]):
+        raise HTTPException(409, "The point cloud is still being indexed")
     try:
         result = lidar.section(payload["path"], payload["start"], payload["end"],
                                float(payload.get("width", 2.0)), int(payload.get("maxPoints", 150_000)))
@@ -3768,6 +3833,7 @@ def lidar_section(payload: dict = Body(...)) -> dict:
 
 @app.get("/lidar/labels")
 def lidar_labels(path: str) -> dict:
+    _lidar_cache()
     project = require_project()
     labels = _read_labels(project, path)
     counts: dict = {}
@@ -3779,6 +3845,7 @@ def lidar_labels(path: str) -> dict:
 @app.post("/lidar/labels")
 def lidar_set_labels(payload: dict = Body(...)) -> dict:
     """Add, change or clear labels: {path, set: {index: class}, clear: [index], clearAll}."""
+    _lidar_cache()
     project = require_project()
     path = payload["path"]
     labels = {} if payload.get("clearAll") else _read_labels(project, path)
@@ -3792,6 +3859,7 @@ def lidar_set_labels(payload: dict = Body(...)) -> dict:
 
 @app.post("/lidar/learn")
 def lidar_learn_endpoint(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
     project = require_project()
     source = payload["path"]
     labels = _read_labels(project, source)
@@ -3830,6 +3898,7 @@ def lidar_learn_endpoint(payload: dict = Body(...)) -> dict:
 
 @app.post("/lidar/compare")
 def lidar_compare(payload: dict = Body(...)) -> dict:
+    _lidar_cache()
     try:
         return clean(lidar.compare_to_reference(payload["derived"], payload["reference"]))
     except Exception as exc:

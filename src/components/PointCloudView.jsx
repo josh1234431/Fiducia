@@ -31,14 +31,23 @@ export default function PointCloudView() {
   const colours = reference?.lidarClassColours || {}
   const spots = project?.lidarLearning?.uncertainSpots || []
 
+  const [waiting, setWaiting] = useState(0)
   useEffect(() => {
     let live = true
+    let timer = null
     setOverview(null)
     api.lidar.overview(path, colour === 'height' ? 'height' : 'class')
       .then((result) => live && setOverview(result))
-      .catch((error) => toast(error.message, 'bad'))
-    return () => { live = false }
-  }, [path, colour]) // eslint-disable-line react-hooks/exhaustive-deps
+      .catch((error) => {
+        // Still being indexed: look again shortly.
+        if (/indexed/i.test(error.message || '')) {
+          timer = setTimeout(() => live && setWaiting((w) => w + 1), 2000)
+        } else {
+          toast(error.message, 'bad')
+        }
+      })
+    return () => { live = false; clearTimeout(timer) }
+  }, [path, colour, waiting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!section) { setCut(null); return }
@@ -326,7 +335,7 @@ export default function PointCloudView() {
         onPointerDown={onPlanDown} onPointerMove={onPlanMove} onPointerUp={onPlanUp}>
         {overview
           ? <img src={overview.image} alt="The point cloud from above" draggable={false} />
-          : <div className="cloudview__empty">Drawing the point cloud…</div>}
+          : <div className="cloudview__empty">{waiting ? 'Indexing the point cloud…' : 'Drawing the point cloud…'}</div>}
         {overview && (
           <svg className="cloudview__overlay">
             {line && (

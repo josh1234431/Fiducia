@@ -31,16 +31,23 @@ CHUNK = 100_000            # points per pass when measuring the whole cloud
 
 # -- measurements ---------------------------------------------------------------
 
-def _ground_reference(x, y, z, classification) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+def _ground_reference(path: str, cloud) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
     """A ground height at any (x, y): from class 2 when there is enough of it,
-    otherwise a coarse minimum surface, which is close enough for a feature."""
-    ground = classification == 2
-    use = ground if ground.sum() >= 50 else ~np.isin(classification, lidar.NOISE_CLASSES)
-    cell = 1.0 if ground.sum() >= 50 else 5.0
-    gx, gy, gz = x[use], y[use], z[use]
-    bounds = lidar._snapped_bounds(x, y, cell)
-    surface, _ = lidar._bin_points(gx, gy, gz, bounds, cell, "mean" if ground.sum() >= 50 else "minimum", 2.0)
-    surface = lidar._fill_all(surface)
+    otherwise a coarse minimum surface, which is close enough for a feature.
+    Streamed into one grid for the whole cloud, so every tile measures height
+    against the same ground."""
+    from .lidar_tiles import arrays, stream
+
+    has_ground = int(cloud.manifest["classHistogram"].get("2", 0)) >= 50
+    cell = 1.0 if has_ground else 5.0
+    west, south, east, north = cloud.bounds
+    bounds = lidar._snapped_bounds(np.array([west, east]), np.array([south, north]), cell)
+    grid = lidar._Grid(bounds, cell, "mean" if has_ground else "minimum")
+    for _, points in stream(path):
+        a = arrays(points)
+        use = (a["classification"] == 2) if has_ground else ~np.isin(a["classification"], lidar.NOISE_CLASSES)
+        grid.add(a["x"][use], a["y"][use], a["z"][use])
+    surface = lidar._fill_all(grid.result())
     return lambda px, py: lidar._sample_grid(surface, bounds, cell, px, py)
 
 
@@ -58,32 +65,28 @@ def feature_names(with_intensity: bool) -> list[str]:
 
 
 class Features:
-    """Measures any subset of a cloud's points against the whole cloud."""
+    """Measures points of one tile against that tile and a margin around it.
 
-    def __init__(self, las):
+    The margin must reach further than the widest neighbourhood, so a point at
+    the tile's edge is measured exactly as anywhere else.
+    """
+
+    def __init__(self, d: dict, ground: Callable, intensity_scale: Optional[float]):
         from scipy.spatial import cKDTree
 
-        self.x = np.asarray(las.x, dtype=np.float64)
-        self.y = np.asarray(las.y, dtype=np.float64)
-        self.z = np.asarray(las.z, dtype=np.float64)
-        self.classification = np.asarray(las.classification).astype(np.int64)
-        self.return_number = np.asarray(las.return_number).astype(np.float64)
-        self.number_of_returns = np.maximum(np.asarray(las.number_of_returns).astype(np.float64), 1)
-        self.intensity = None
-        try:
-            intensity = np.asarray(las.intensity).astype(np.float64)
-            if intensity.max() > intensity.min():
-                self.intensity = intensity / max(np.percentile(intensity, 99), 1e-9)
-        except Exception:
-            pass
+        self.x, self.y, self.z = d["x"], d["y"], d["z"]
+        self.classification = d["classification"]
+        self.return_number = d["return_number"].astype(np.float64)
+        self.number_of_returns = np.maximum(d["number_of_returns"].astype(np.float64), 1)
+        self.intensity = d["intensity"] / intensity_scale if intensity_scale else None
         self.names = feature_names(self.intensity is not None)
-        self.ground = _ground_reference(self.x, self.y, self.z, self.classification)
+        self.ground = ground
         # Neighbours are searched among real points only, in local coordinates.
         usable = ~np.isin(self.classification, lidar.NOISE_CLASSES)
-        self.origin = (float(self.x.min()), float(self.y.min()))
+        self.origin = (float(self.x.min()), float(self.y.min())) if self.x.size else (0.0, 0.0)
         self.xyz = np.column_stack([self.x - self.origin[0], self.y - self.origin[1], self.z])
         self.searchable = np.nonzero(usable)[0]
-        self.tree = cKDTree(self.xyz[self.searchable])
+        self.tree = cKDTree(self.xyz[self.searchable]) if self.searchable.size > max(SCALES) else None
 
     def measure(self, index: np.ndarray) -> np.ndarray:
         out = np.empty((index.size, len(self.names)), dtype=np.float32)
@@ -93,6 +96,8 @@ class Features:
         return out
 
     def _measure(self, index: np.ndarray) -> np.ndarray:
+        if self.tree is None:
+            return np.zeros((index.size, len(self.names)))
         points = self.xyz[index]
         columns = [
             self.z[index] - self.ground(self.x[index], self.y[index]),
@@ -294,8 +299,11 @@ def train_and_apply(
     tree judged on the labels it never saw) says how well it learned, per
     class, without setting labels aside. The places it is least sure of come
     back so the operator can label there next.
+
+    The cloud is measured and classified tile by tile, with a margin wide
+    enough for every neighbourhood, so memory follows the tile, not the cloud.
     """
-    import laspy
+    from .lidar_tiles import TiledCloud, ensure_memory, header_of, release, scratch, write_classified
 
     def step(fraction, message):
         if progress:
@@ -305,6 +313,8 @@ def train_and_apply(
 
     index = np.array([int(k) for k in labels], dtype=np.int64)
     target = np.array([int(v) for v in labels.values()], dtype=np.int64)
+    order = np.argsort(index)
+    index, target = index[order], target[order]
     present, counts = np.unique(target, return_counts=True)
     if present.size < 2:
         raise ValueError("Label points of at least two classes before training.")
@@ -312,62 +322,98 @@ def train_and_apply(
         thin = [int(c) for c, n in zip(present, counts) if n < 10]
         raise ValueError(f"Label at least 10 points of each class; class {thin} has fewer.")
 
-    step(0.03, "Reading point cloud")
-    las = laspy.read(path)
-    lidar._resolve_crs(las.header, options.crs)
-    if index.max() >= len(las.x):
+    lidar._resolve_crs(header_of(path), options.crs)
+    cloud = TiledCloud(path, lambda f, m: step(0.02 + 0.1 * f, m), should_cancel)
+    if index.max() >= cloud.n:
         raise ValueError("The labels belong to a different cloud: some point numbers are past its end.")
+    margin = max(3.0, 8.0 * cloud.spacing)
+    ensure_memory(int(cloud.largest_tile * (1 + 4 * margin / cloud.tile_size) * 900), "Learning classes")
+    intensity = cloud.manifest.get("intensity", {})
+    intensity_scale = max(intensity.get("p99", 0.0), 1e-9) if intensity.get("varies") else None
 
-    step(0.1, "Measuring neighbourhoods")
-    features = Features(las)
-    X = features.measure(index)
+    step(0.13, "Measuring the ground")
+    ground = _ground_reference(path, cloud)
+    tiles = sorted(cloud.tiles)
 
-    step(0.25, f"Training on {index.size:,} labelled points")
+    # Measure the labelled points, in whichever tiles they fall.
+    X = None
+    for done, tile in enumerate(tiles):
+        step(0.18 + 0.12 * done / len(tiles), "Measuring labelled points")
+        d = cloud.load(tile, margin)
+        local = np.nonzero(d["core"] & np.isin(d["index"], index))[0]
+        if not local.size:
+            continue
+        features = Features(d, ground, intensity_scale)
+        if X is None:
+            X = np.zeros((index.size, len(features.names)), dtype=np.float32)
+            names = features.names
+        X[np.searchsorted(index, d["index"][local])] = features.measure(local)
+    if X is None:
+        raise ValueError("None of the labelled points are in this cloud.")
+
+    step(0.32, f"Training on {index.size:,} labelled points")
     forest = Forest(trees=options.trees, max_depth=options.max_depth).fit(X, target)
     classes = forest.classes
+    knows_noise = np.isin(classes, lidar.NOISE_CLASSES).any()
 
-    classification = features.classification
-    changeable = np.ones(classification.size, dtype=bool)
-    if options.change_classes is not None:
-        changeable = np.isin(classification, np.asarray(options.change_classes, dtype=np.int64))
-    if not np.isin(classes, lidar.NOISE_CLASSES).any():
-        # Without noise examples the forest cannot know noise, so points
-        # already labelled noise stay noise.
-        changeable &= ~np.isin(classification, lidar.NOISE_CLASSES)
-    changeable[index] = False
-    todo = np.nonzero(changeable)[0]
-
-    updated = classification.copy()
-    updated[index] = target
+    updated = scratch(cloud.n, np.uint8)
+    original_counts = np.zeros(256, dtype=np.int64)
+    changed = 0
     confidence_hist = np.zeros(10, dtype=np.int64)
     candidates_x, candidates_y, candidates_c, candidates_p = [], [], [], []
-    for start in range(0, todo.size, CHUNK):
-        step(0.35 + 0.55 * start / max(todo.size, 1), f"Classifying {start:,} of {todo.size:,} points")
-        part = todo[start:start + CHUNK]
-        proba = forest.predict_proba(features.measure(part))
-        best = np.argmax(proba, axis=1)
-        confidence = proba[np.arange(part.size), best]
-        sure = confidence >= options.min_confidence
-        updated[part[sure]] = classes[best[sure]]
-        confidence_hist += np.histogram(confidence, bins=10, range=(0, 1))[0]
-        # Keep the least sure few of each pass, to choose spots from later.
-        worst = np.argsort(confidence)[:200]
-        candidates_x.append(features.x[part[worst]])
-        candidates_y.append(features.y[part[worst]])
-        candidates_c.append(confidence[worst])
-        candidates_p.append(classes[best[worst]])
+    try:
+        for done, tile in enumerate(tiles):
+            step(0.4 + 0.5 * done / len(tiles), f"Classifying, tile {done + 1} of {len(tiles)}")
+            d = cloud.load(tile, margin)
+            core = d["core"]
+            current = d["classification"]
+            updated[d["index"][core]] = current[core]
+            np.add.at(original_counts, current[core].clip(0, 255), 1)
+            changeable = core.copy()
+            if options.change_classes is not None:
+                changeable &= np.isin(current, np.asarray(options.change_classes, dtype=np.int64))
+            if not knows_noise:
+                # Without noise examples the forest cannot know noise, so points
+                # already labelled noise stay noise.
+                changeable &= ~np.isin(current, lidar.NOISE_CLASSES)
+            changeable &= ~np.isin(d["index"], index)
+            local = np.nonzero(changeable)[0]
+            if not local.size:
+                continue
+            proba = forest.predict_proba(Features(d, ground, intensity_scale).measure(local))
+            best = np.argmax(proba, axis=1)
+            confidence = proba[np.arange(local.size), best]
+            sure = confidence >= options.min_confidence
+            new = classes[best]
+            changed += int((sure & (new != current[local])).sum())
+            updated[d["index"][local[sure]]] = new[sure]
+            confidence_hist += np.histogram(confidence, bins=10, range=(0, 1))[0]
+            # Keep the least sure few of each tile, to choose spots from later.
+            worst = np.argsort(confidence)[:200]
+            candidates_x.append(d["x"][local[worst]])
+            candidates_y.append(d["y"][local[worst]])
+            candidates_c.append(confidence[worst])
+            candidates_p.append(new[worst])
 
-    step(0.92, "Writing point cloud")
-    las.classification = updated.astype(np.asarray(las.classification).dtype)
-    Path(options.output_path).parent.mkdir(parents=True, exist_ok=True)
-    las.write(options.output_path)
+        # Labelled points keep their labels.
+        before = np.asarray(updated[index])
+        changed += int((before != target).sum())
+        updated[index] = target
+
+        step(0.9, "Writing point cloud")
+        write_classified(path, options.output_path, updated, lambda f: step(0.9 + 0.09 * f, "Writing point cloud"))
+        result_counts = np.zeros(256, dtype=np.int64)
+        for lo in range(0, cloud.n, 5_000_000):
+            result_counts += np.bincount(np.asarray(updated[lo:lo + 5_000_000]), minlength=256)
+    finally:
+        release(updated)
 
     spots = []
     if candidates_x:
         cx, cy = np.concatenate(candidates_x), np.concatenate(candidates_y)
         cc, cp = np.concatenate(candidates_c), np.concatenate(candidates_p)
-        span = max(np.ptp(features.x), np.ptp(features.y))
-        apart = max(span / 20, 5.0)
+        west, south, east, north = cloud.bounds
+        apart = max(max(east - west, north - south) / 20, 5.0)
         for i in np.argsort(cc):
             if all(math.hypot(cx[i] - s["x"], cy[i] - s["y"]) > apart for s in spots):
                 spots.append({"x": float(cx[i]), "y": float(cy[i]), "confidence": float(cc[i]),
@@ -388,20 +434,19 @@ def train_and_apply(
             "labelled": int((target == code).sum()),
             "precision": float(tp / max(confusion[:, i].sum(), 1)),
             "recall": float(tp / max(confusion[i, :].sum(), 1)),
-            "result": int((updated == code).sum()),
+            "result": int(result_counts[int(code)]),
         })
-    order = np.argsort(forest.importance)[::-1]
+    ranking = np.argsort(forest.importance)[::-1]
     step(1.0, "Complete")
     return {
         "outputPath": options.output_path,
-        "pointsTotal": int(classification.size),
+        "pointsTotal": int(cloud.n),
         "pointsLabelled": int(index.size),
-        "pointsChanged": int((updated != classification).sum()),
+        "pointsChanged": int(changed),
         "accuracy": float((truth == guess).mean()) if truth.size else 0.0,
         "classes": per_class,
         "confusion": confusion.tolist(),
-        "importance": [{"feature": features.names[i], "weight": float(forest.importance[i])}
-                       for i in order[:8]],
+        "importance": [{"feature": names[i], "weight": float(forest.importance[i])} for i in ranking[:8]],
         "confidence": confidence_hist.tolist(),
         "uncertainSpots": spots,
     }

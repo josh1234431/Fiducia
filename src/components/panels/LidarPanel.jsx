@@ -69,6 +69,19 @@ export default function LidarPanel() {
     if (source && !summary) open(source)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A cloud seen for the first time is indexed in the background; look again
+  // until it is ready.
+  useEffect(() => {
+    if (!summary?.indexing) return undefined
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.lidar.inspect(summary.path)
+        if (result.path === summary.path) setSummary(result)
+      } catch { /* the job bar shows any failure */ }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [summary])
+
   useEffect(() => {
     if (!source || !project) { setLabelCounts(null); return }
     api.lidar.labels(source).then(setLabelCounts).catch(() => setLabelCounts(null))
@@ -176,6 +189,12 @@ export default function LidarPanel() {
         ) : (
           <>
             <div className="field__hint truncate" style={{ marginBottom: 6 }}>{source}</div>
+            {summary?.indexing && (
+              <div className="field__hint" style={{ marginBottom: 6 }}>
+                Indexing {summary.pointCount.toLocaleString()} points so that any size of cloud fits in
+                memory. Progress is in the job bar; the tools appear when it is done.
+              </div>
+            )}
             {summary && (
               <>
                 <div className="measures">
@@ -239,7 +258,7 @@ export default function LidarPanel() {
         )}
       </section>
 
-      {summary && (
+      {summary && !summary.indexing && (
         <>
           <section className="section">
             <div className="section__head">
