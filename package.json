@@ -1,6 +1,6 @@
 {
   "name": "fiducia",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Fiducia — photogrammetry for aerial and satellite imagery.",
   "author": "Joshua Metcalf (https://www.linkedin.com/in/joshua-metcalf-1b2184263)",
