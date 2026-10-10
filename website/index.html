@@ -2223,20 +2223,11 @@ main, footer.foot { position: relative; z-index: 1; }
     if (attitude && text !== tilt.shown) { attitude.textContent = text; tilt.shown = text; }
   }
 
-  // -- plates drift a little against the copy as you scroll -----------------
   // Positions are measured once (and again on resize), never inside a frame,
   // so scrolling costs no layout work at all.
-  var floaters = Array.prototype.map.call(document.querySelectorAll('.idea .plate'), function (el) {
-    return { el: el, mid: 0, h: 0, shown: '' };
-  });
   var layout = { heroBottom: 0, trackTop: 0, trackSpan: 1, trackH: 0, meshW: 0, meshH: 0 };
   function measure() {
     var y = window.scrollY;
-    floaters.forEach(function (f) {
-      var r = f.el.getBoundingClientRect();
-      var shift = parseFloat((f.el.style.translate || '0 0').split(' ')[1]) || 0;
-      f.mid = r.top + y - shift + r.height / 2; f.h = r.height;
-    });
     var hr = heroBox.getBoundingClientRect();
     layout.heroBottom = hr.bottom + y;
     var tr = track.getBoundingClientRect();
@@ -2247,15 +2238,6 @@ main, footer.foot { position: relative; z-index: 1; }
     var sr = showcase.parentNode.getBoundingClientRect();
     layout.showcaseTop = sr.top + y;
   }
-  function parallax(y) {
-    var vh = window.innerHeight, mid = y + vh / 2;
-    floaters.forEach(function (f) {
-      if (f.mid + f.h < y - 200 || f.mid - f.h > y + vh + 200) return;
-      var v = '0 ' + ((f.mid - mid) * -0.06).toFixed(1) + 'px';
-      if (v !== f.shown) { f.el.style.translate = v; f.shown = v; }
-    });
-  }
-
   // -- the product shot tips up into place as it scrolls in ----------------
   var showcase = document.getElementById('showcase');
   var showcaseShown = '';
@@ -2521,7 +2503,6 @@ main, footer.foot { position: relative; z-index: 1; }
 
       drawField(t, smoothY);
       if (y < layout.heroBottom) heroTilt(t, kTilt);
-      parallax(smoothY);
       tipShowcase(smoothY);
       ticker(vel);
       spinRing(y, vel, dt);
