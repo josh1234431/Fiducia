@@ -1062,33 +1062,6 @@ main, footer.foot { position: relative; z-index: 1; }
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) { z-index: 2; }
 
-/* -- the spinning badge: a fiducial ring, faster as you scroll ---------- */
-.ring {
-  position: fixed;
-  right: clamp(14px, 3vw, 28px);
-  bottom: clamp(14px, 3vw, 28px);
-  z-index: 20;
-  width: 112px;
-  height: 112px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--panel) 86%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--rule-strong);
-  color: var(--ink);
-  opacity: 0;
-  transform: scale(0.6) rotate(-30deg);
-  pointer-events: none;
-  transition: opacity 400ms, transform 600ms var(--ease-spring), border-color 200ms;
-}
-.ring.on { opacity: 1; transform: none; pointer-events: auto; }
-.ring:hover { border-color: var(--accent-bright); }
-.ring svg { display: block; width: 100%; height: 100%; }
-.ring text { font-family: var(--font-data); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; fill: var(--ink-soft); }
-.ring:hover text { fill: var(--accent-bright); }
-.ring__dot { transition: transform 300ms var(--ease-spring); transform-box: fill-box; transform-origin: center; }
-.ring:hover .ring__dot { transform: scale(1.6); }
-@media (max-width: 640px) { .ring { width: 86px; height: 86px; } }
 
 /* -- narrow ------------------------------------------------------------ */
 @media (max-width: 860px) {
@@ -1119,7 +1092,7 @@ main, footer.foot { position: relative; z-index: 1; }
   .report .meter i { width: var(--w) !important; transition: none !important; }
   .ticker__track { animation: none !important; }
   .step p { max-height: none; opacity: 1; margin-top: 4px; }
-  .ring, .feature::after, .card::after { transition: none !important; }
+  .feature::after, .card::after { transition: none !important; }
 }
 </style>
 
@@ -1631,23 +1604,6 @@ main, footer.foot { position: relative; z-index: 1; }
     <span>Photogrammetry, with the working shown.</span>
   </div>
 </footer>
-
-<!-- a fiducial ring that spins faster as you scroll -->
-<a class="ring" href="#download" aria-label="Download Fiducia">
-  <svg viewBox="0 0 120 120" aria-hidden="true">
-    <defs><path id="ring-path" d="M60,60 m-45,0 a45,45 0 1,1 90,0 a45,45 0 1,1 -90,0"/></defs>
-    <g id="ring-spin">
-      <text><textPath href="#ring-path" textLength="280" lengthAdjust="spacing">DOWNLOAD · FEEDBACK WELCOME · </textPath></text>
-    </g>
-    <g stroke="var(--fid)" stroke-width="1.5">
-      <path d="M60 22v6M60 92v6M22 60h6M92 60h6"/>
-    </g>
-    <g transform="translate(60 60) scale(0.6) translate(-32 -32)">
-      <path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-      <circle class="ring__dot" cx="32" cy="32" r="4.75" fill="#3fc4a8"/>
-    </g>
-  </svg>
-</a>
 
 <script>
 (function () {
@@ -2265,24 +2221,6 @@ main, footer.foot { position: relative; z-index: 1; }
     tickerAnims.forEach(function (a) { a.updatePlaybackRate ? a.updatePlaybackRate(rate) : (a.playbackRate = rate); });
   }
 
-  // -- the ring spins with the scroll, and steps aside for the closing ------
-  var ring = document.querySelector('.ring');
-  var ringSpin = document.getElementById('ring-spin');
-  var ringAngle = 0, nearEnd = false;
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) { nearEnd = entry.isIntersecting; });
-    }).observe(document.getElementById('download'));
-  }
-  var ringOn = false;
-  function spinRing(y, vel, dt) {
-    var on = y > window.innerHeight * 0.6 && !nearEnd;
-    if (on !== ringOn) { ring.classList.toggle('on', on); ringOn = on; }
-    if (!on) return;
-    ringAngle = (ringAngle + (0.15 + Math.min(Math.abs(vel) * 0.5, 14)) * dt / 16.67) % 360;
-    ringSpin.setAttribute('transform', 'rotate(' + ringAngle.toFixed(2) + ' 60 60)');
-  }
-
   // -- the stereo DEM, built by scrolling ------------------------------------
   var surface = document.querySelector('[data-surface]');
   var track = surface.querySelector('.surface__track');
@@ -2505,7 +2443,6 @@ main, footer.foot { position: relative; z-index: 1; }
       if (y < layout.heroBottom) heroTilt(t, kTilt);
       tipShowcase(smoothY);
       ticker(vel);
-      spinRing(y, vel, dt);
       surfaceFrame(y, t, kSlow);
       requestAnimationFrame(frame);
     })(performance.now());
