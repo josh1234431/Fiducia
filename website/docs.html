@@ -298,7 +298,7 @@ td:first-child { color: var(--ink); font-weight: 600; }
         <li><strong>No admin rights needed.</strong> It installs just for your user account, so it works on university and work computers.</li>
         <li><strong>SmartScreen will ask first.</strong> The installer isn't code-signed yet, so Windows shows a warning on first run. Choose <em>More info</em>, then <em>Run anyway</em>.</li>
         <li><strong>Shortcuts.</strong> You get a Start menu and a desktop shortcut, and you can choose the install folder.</li>
-        <li><strong>Check the download.</strong> Each release lists the installer's SHA-256. In PowerShell: <code>Get-FileHash .\Fiducia-Setup-0.3.0.exe -Algorithm SHA256</code></li>
+        <li><strong>Check the download.</strong> Each release lists the installer's SHA-256. In PowerShell: <code>Get-FileHash .\Fiducia-Setup-0.3.1.exe -Algorithm SHA256</code></li>
       </ul>
       <p>
         To remove Fiducia, use <em>Settings → Apps</em> in Windows like any other program. Your projects
@@ -1071,6 +1071,10 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
     <section class="doc" id="release-notes" data-group="Help" data-title="Release notes">
       <div class="doc__group">Help</div>
       <h2>Release notes</h2>
+      <h3>0.3.1, 12 October 2026</h3>
+      <ul>
+        <li>LiDAR: after training on your labels, the classified cloud's section appears as soon as the cloud is indexed, instead of waiting for the section line to be drawn again.</li>
+      </ul>
       <h3>0.3.0, 10 October 2026</h3>
       <ul>
         <li>LiDAR: finding the ground in a point cloud, and height above ground (canopy height models and normalised DSMs), including a pit-free method for dense canopy.</li>
