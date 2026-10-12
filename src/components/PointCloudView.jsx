@@ -55,18 +55,27 @@ export default function PointCloudView() {
     return () => { live = false; clearTimeout(timer) }
   }, [path, colour, waiting]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [sectionWaiting, setSectionWaiting] = useState(0)
   useEffect(() => {
     if (!section) { setCut(null); return }
     let live = true
+    let timer = null
     api.lidar.section(path, section.start, section.end, section.width)
       .then((result) => {
         if (!live) return
         setCut(result)
         setLabels(result.labels || {})
       })
-      .catch((error) => toast(error.message, 'bad'))
-    return () => { live = false }
-  }, [path, section]) // eslint-disable-line react-hooks/exhaustive-deps
+      .catch((error) => {
+        // A cloud just opened may still be indexed: look again shortly.
+        if (/indexed/i.test(error.message || '')) {
+          timer = setTimeout(() => live && setSectionWaiting((w) => w + 1), 2000)
+        } else {
+          toast(error.message, 'bad')
+        }
+      })
+    return () => { live = false; clearTimeout(timer) }
+  }, [path, section, sectionWaiting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // -- plan view -------------------------------------------------------------
 
