@@ -4,15 +4,6 @@ import { api } from '../../lib/api'
 import InfoTip from '../InfoTip'
 import ProjectionPicker, { rememberProjection } from '../ProjectionPicker'
 
-const MATH_MODELS = [
-  { id: 'aerial_film', name: 'Aerial — scanned film',
-    hint: 'Fiducial marks and a calibration certificate' },
-  { id: 'aerial_digital', name: 'Aerial — digital / UAV',
-    hint: 'Frame sensor, no fiducials' },
-  { id: 'satellite_rpc', name: 'Satellite — rational polynomial',
-    hint: 'Scene RPCs, refined with control' },
-]
-
 export default function ProjectPanel() {
   const project = useStore((s) => s.project)
   const projections = useStore((s) => s.projections)
@@ -97,8 +88,9 @@ export default function ProjectPanel() {
           <span className="section__title">Processing</span>
           <span className="section__rule" />
           <InfoTip>
-            Decides which steps lead the rail and in what order. Changing it keeps
-            everything already done; every other step stays under More tools.
+            The kind of data in this project. It sets the math model and which
+            steps lead the rail. Changing it keeps everything already done, and
+            every other step stays under More tools.
           </InfoTip>
         </div>
 
@@ -116,24 +108,6 @@ export default function ProjectPanel() {
           </button>
         ))}
       </section>
-
-      {workflow.id === 'all' && (
-        <section className="section">
-          <div className="section__head"><span className="section__title">Math model</span>
-            <span className="section__rule" /></div>
-
-          {MATH_MODELS.map((option) => (
-            <button
-              key={option.id}
-              className={`option ${mathModel.kind === option.id ? 'option--on' : ''}`}
-              onClick={() => patchProject({ mathModel: { ...mathModel, kind: option.id } })}
-            >
-              <span className="option__name">{option.name}</span>
-              <span className="option__hint">{option.hint}</span>
-            </button>
-          ))}
-        </section>
-      )}
 
       <section className="section">
         <div className="section__head">

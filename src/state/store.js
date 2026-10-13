@@ -72,7 +72,7 @@ export const STEPS = [
     id: 'project',
     name: 'Project',
     detail: 'Setup',
-    blurb: 'Math model, projection and output grid',
+    blurb: 'Data, projection and output grid',
   },
   {
     id: 'camera',
@@ -137,17 +137,19 @@ export const STEPS = [
 ]
 
 /**
- * What a project processes, chosen when it is created. It decides which
- * steps lead the rail, in what order and under what names -- a drone block
- * needs no calibration certificate and makes its surface before its
- * orthophotos. Nothing is taken away: every other step stays one click away
- * under "More tools", and the workflow can be changed on the Project step.
+ * What a project processes, chosen when it is created: one kind of data
+ * each. It decides the math model and which steps lead the rail, in what
+ * order and under what names -- a drone block needs no calibration
+ * certificate and makes its surface before its orthophotos; a LiDAR cloud
+ * needs no camera at all. Nothing is taken away: every other step stays one
+ * click away under "More tools", and the choice can be changed on the
+ * Project step.
  */
 export const WORKFLOWS = [
   {
     id: 'drone',
     name: 'Drone photos',
-    hint: 'GPS-tagged photos from a drone. Camera, positions and tie points come from the photos.',
+    hint: 'GPS-tagged photos. No camera certificate needed.',
     mathModel: 'aerial_digital',
     steps: ['project', 'images', 'points', 'model', 'dem', 'ortho', 'mosaic', 'terrain', 'reports'],
     labels: {
@@ -159,9 +161,20 @@ export const WORKFLOWS = [
     },
   },
   {
+    id: 'aerial',
+    name: 'Digital aerial photos',
+    hint: 'A calibrated frame camera, no fiducial marks.',
+    mathModel: 'aerial_digital',
+    steps: ['project', 'camera', 'images', 'points', 'model', 'ortho', 'mosaic', 'dem', 'terrain', 'reports'],
+    labels: {
+      camera: { detail: 'Calibration', blurb: 'The camera calibration: focal length, sensor and distortion' },
+      images: { detail: 'Photos and clipping', blurb: 'Imagery and clip regions' },
+    },
+  },
+  {
     id: 'film',
     name: 'Scanned film photos',
-    hint: 'Aerial film with fiducial marks and a calibration certificate.',
+    hint: 'Film with fiducial marks and a calibration certificate.',
     mathModel: 'aerial_film',
     steps: ['project', 'camera', 'images', 'points', 'model', 'ortho', 'mosaic', 'dem', 'terrain', 'reports'],
     labels: {},
@@ -169,36 +182,43 @@ export const WORKFLOWS = [
   {
     id: 'satellite',
     name: 'Satellite scenes',
-    hint: 'Scenes with rational polynomial coefficients, refined with control.',
+    hint: 'Scenes supplied with RPCs, refined with ground control.',
     mathModel: 'satellite_rpc',
     steps: ['project', 'images', 'points', 'model', 'ortho', 'mosaic', 'dem', 'terrain', 'reports'],
     labels: {},
   },
   {
-    id: 'all',
-    name: 'Everything',
-    hint: 'Every tool in the classic order, and any math model.',
+    id: 'lidar',
+    name: 'LiDAR point clouds',
+    hint: 'Airborne or drone LiDAR (LAS/LAZ): ground, heights and classes.',
     mathModel: null,
-    steps: null,
-    labels: {},
+    steps: ['project', 'lidar', 'terrain'],
+    labels: {
+      lidar: { blurb: 'Noise, ground, height above ground and classes from labels' },
+    },
   },
 ]
 
 /** The project's workflow; older projects are given the one they evidently are. */
 export function workflowOf(project) {
-  const id = project?.workflow
-    || (project?.droneBlock ? 'drone'
-      : project?.mathModel?.kind === 'satellite_rpc' ? 'satellite'
-        : (project?.mathModel?.kind || 'aerial_film') === 'aerial_film' ? 'film'
-          : 'all')
-  return WORKFLOWS.find((w) => w.id === id) || WORKFLOWS[WORKFLOWS.length - 1]
+  // Projects made before each kind of data had its own choice, or set to the
+  // old "Everything", are given the one their contents show.
+  const evident = () => {
+    if (project?.droneBlock) return 'drone'
+    const lidarOnly = !project?.images?.length && (project?.lidarClouds?.length || project?.lidar?.length)
+    if (lidarOnly) return 'lidar'
+    const kind = project?.mathModel?.kind || 'aerial_film'
+    return kind === 'satellite_rpc' ? 'satellite' : kind === 'aerial_digital' ? 'aerial' : 'film'
+  }
+  const chosen = WORKFLOWS.find((w) => w.id === project?.workflow)
+  return chosen || WORKFLOWS.find((w) => w.id === evident())
 }
 
 /** Steps in this project's order and words: the workflow's, then the rest. */
 export function stepsFor(project) {
   const workflow = workflowOf(project)
   const byId = Object.fromEntries(STEPS.map((step) => [step.id, step]))
-  const order = workflow.steps || STEPS.map((step) => step.id)
+  const order = workflow.steps
   const primary = order.map((id) => ({ ...byId[id], ...(workflow.labels[id] || {}) }))
   const more = STEPS.filter((step) => !order.includes(step.id))
   return { workflow, primary, more, all: [...primary, ...more] }
@@ -499,15 +519,16 @@ export const useStore = create((set, get) => ({
 
   // -- project lifecycle ------------------------------------------------
 
-  createProject: async (directory, name, description, workflowId = 'all') => {
+  createProject: async (directory, name, description, workflowId = 'drone') => {
     set({ loading: true, error: null })
     try {
       const payload = await api.project.create(directory, name, description, get().author)
-      const workflow = WORKFLOWS.find((w) => w.id === workflowId) || WORKFLOWS[WORKFLOWS.length - 1]
+      const workflow = WORKFLOWS.find((w) => w.id === workflowId) || WORKFLOWS[0]
       // A drone project starts on its photos: its projection, camera and
-      // output grid all come from them.
+      // output grid all come from them. A LiDAR project starts on its cloud,
+      // which carries its own coordinate system.
       set({ project: payload.state, summary: payload.summary,
-            activeStep: workflow.id === 'drone' ? 'images' : 'project',
+            activeStep: { drone: 'images', lidar: 'lidar' }[workflow.id] || 'project',
             outputView: null, mosaicPreview: null })
       const patch = { workflow: workflow.id }
       if (workflow.mathModel) {

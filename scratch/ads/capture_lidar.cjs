@@ -35,7 +35,7 @@ app.whenReady().then(async () => {
   await window.loadURL('http://127.0.0.1:5273/')
   await run(`localStorage.setItem('fiducia.introSeen', '1'); localStorage.setItem('fiducia.author', 'Demo'); 1`)
   await run(`fetch('http://127.0.0.1:8731/project', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ workflow: 'all' }) }).then(() => 1)`)
+    body: JSON.stringify({ workflow: 'lidar' }) }).then(() => 1)`)
   await window.loadURL('http://127.0.0.1:5273/')
   await pause(3000)
   console.log('laid out at', (await run('[innerWidth, innerHeight, devicePixelRatio]')).join(' x '))

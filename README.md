@@ -316,7 +316,7 @@ interfaces in place, but have had less real-data exercise than the core chain.
 
 | Step | What happens |
 |---|---|
-| Project | Math model, projection, output grid |
+| Project | Kind of data (drone, digital aerial, scanned film, satellite or LiDAR), projection, output grid |
 | Camera | Interior orientation — read a certificate, or load one from the library |
 | Images | Add photographs, measure fiducials (or detect them automatically), clip |
 | Control | Import a survey file, measure by hand, or match against a reference |

@@ -298,7 +298,7 @@ td:first-child { color: var(--ink); font-weight: 600; }
         <li><strong>No admin rights needed.</strong> It installs just for your user account, so it works on university and work computers.</li>
         <li><strong>SmartScreen will ask first.</strong> The installer isn't code-signed yet, so Windows shows a warning on first run. Choose <em>More info</em>, then <em>Run anyway</em>.</li>
         <li><strong>Shortcuts.</strong> You get a Start menu and a desktop shortcut, and you can choose the install folder.</li>
-        <li><strong>Check the download.</strong> Each release lists the installer's SHA-256. In PowerShell: <code>Get-FileHash .\Fiducia-Setup-0.3.1.exe -Algorithm SHA256</code></li>
+        <li><strong>Check the download.</strong> Each release lists the installer's SHA-256. In PowerShell: <code>Get-FileHash .\Fiducia-Setup-0.3.2.exe -Algorithm SHA256</code></li>
       </ul>
       <p>
         To remove Fiducia, use <em>Settings → Apps</em> in Windows like any other program. Your projects
@@ -321,7 +321,7 @@ td:first-child { color: var(--ink); font-weight: 600; }
       </p>
       <ol>
         <li>Choose <strong>New project</strong>, type a <strong>Project name</strong> and <strong>Choose a folder</strong>. Fiducia shows the exact bundle path it will create before you commit.</li>
-        <li>Answer <strong>What are you processing?</strong>: <em>Drone photos</em>, <em>Scanned film photos</em>, <em>Satellite scenes</em> or <em>Everything</em>. This decides which steps lead the rail, in what order and under what names. The other steps stay under <strong>More tools</strong>, and you can change the choice later on the <a href="#step-project">Project</a> step without losing any work.</li>
+        <li>Answer <strong>What are you processing?</strong>: <em>Drone photos</em>, <em>Digital aerial photos</em>, <em>Scanned film photos</em>, <em>Satellite scenes</em> or <em>LiDAR point clouds</em>. This decides which steps lead the rail, in what order and under what names. The other steps stay under <strong>More tools</strong>, and you can change the choice later on the <a href="#step-project">Project</a> step without losing any work.</li>
         <li>Choose <strong>Create project</strong>. A project is a folder ending in <code>.fidu</code>; everything about it lives inside.</li>
         <li>Work down the steps on the left, from <a href="#step-project">Project</a> to <a href="#step-reports">Reports</a>. Each step shows whether it is ready, done or needs attention, so you can see the state of the whole block at a glance.</li>
       </ol>
@@ -495,14 +495,15 @@ td:first-child { color: var(--ink); font-weight: 600; }
         <em>Settings → Profile</em>.
       </p>
       <h3>Processing</h3>
-      <p>What the project is for. It sets the math model and which steps lead the rail; changing it keeps everything already done.</p>
+      <p>The kind of data in the project. It sets the math model and which steps lead the rail; changing it keeps everything already done, and every other step stays under <em>More tools</em>.</p>
       <div class="table-wrap"><table>
         <thead><tr><th>Option</th><th>Use it for</th></tr></thead>
         <tbody>
           <tr><td>Drone photos</td><td>GPS-tagged photos from a drone; see <a href="#drone">Drone photos</a></td></tr>
+          <tr><td>Digital aerial photos</td><td>A calibrated digital frame camera without fiducial marks, described by its focal length, pixel size and dimensions</td></tr>
           <tr><td>Scanned film photos</td><td>Film frames with fiducial marks and a calibration certificate</td></tr>
           <tr><td>Satellite scenes</td><td>Scenes delivered with RPCs, refined with control (see <a href="#scripting">Scripting the engine</a>)</td></tr>
-          <tr><td>Everything</td><td>Every step in the classic order, with a free choice of math model, including digital frame cameras described by pixel size and dimensions</td></tr>
+          <tr><td>LiDAR point clouds</td><td>Airborne or drone LiDAR in LAS or LAZ: noise, ground, height above ground and classes from labels; see <a href="#step-lidar">LiDAR</a></td></tr>
         </tbody>
       </table></div>
       <h3>Projection</h3>
@@ -1071,6 +1072,12 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
     <section class="doc" id="release-notes" data-group="Help" data-title="Release notes">
       <div class="doc__group">Help</div>
       <h2>Release notes</h2>
+      <h3>0.3.2, 13 October 2026</h3>
+      <ul>
+        <li>New projects start by naming the data: drone photos, digital aerial photos, scanned film photos, satellite scenes or LiDAR point clouds. Each sets its own math model and the steps that lead the rail.</li>
+        <li>LiDAR projects lead with Project, LiDAR and Terrain. Digital aerial cameras without fiducial marks have a choice of their own.</li>
+        <li><em>Everything</em> and the separate math model choice are gone; projects that used them open with the choice their contents show.</li>
+      </ul>
       <h3>0.3.1, 12 October 2026</h3>
       <ul>
         <li>LiDAR: after training on your labels, the classified cloud's section appears as soon as the cloud is indexed, instead of waiting for the section line to be drawn again.</li>

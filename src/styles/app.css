@@ -1450,27 +1450,19 @@
   margin-bottom: 5px;
   transition:
     border-color var(--base) var(--ease-swift),
-    background-color var(--base) var(--ease-swift),
-    box-shadow var(--base) var(--ease-swift),
-    transform var(--quick) var(--ease-swift);
+    background-color var(--base) var(--ease-swift);
 }
 
+/* A plain, flat choice: the border and a light wash say which is chosen. */
 .option:hover {
   border-color: var(--rule-bright);
   background-color: var(--surface-raised);
-  transform: translateY(-1px);
-  box-shadow: var(--elev-1);
 }
 
-.option:active {
-  transform: translateY(0) scale(0.99);
-  transition-duration: 40ms;
-}
-
-.option--on {
+.option--on,
+.option--on:hover {
   border-color: var(--accent-edge);
   background-color: var(--accent-wash);
-  box-shadow: var(--glow-accent);
 }
 
 .option__name {
