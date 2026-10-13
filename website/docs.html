@@ -1075,6 +1075,14 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
     <section class="doc" id="release-notes" data-group="Help" data-title="Release notes">
       <div class="doc__group">Help</div>
       <h2>Release notes</h2>
+      <h3>0.3.3, 13 October 2026</h3>
+      <ul>
+        <li>One rule for colours: fit (residuals, control RMS) is amber above 3 pixels, stated in metres for each block; accuracy from check points is judged against an <em>Accuracy target</em> on the Project step, and left uncoloured without one. Green and amber only ever mean quality.</li>
+        <li>The check-point minimum follows the ASPRS standards, Edition 2 (2023): 30. An offset that is more than chance is called out with its likely causes.</li>
+        <li>Steps that were done but are now out of date are marked with an amber tick: edit the control, and the solution and everything made from it say so until run again.</li>
+        <li>Control is a sortable table, worst first, with check-point errors and single-photo check points marked. The Model step opens on a block overview of footprints, overlap and control.</li>
+        <li>A legend for the marks on the photo, clearer labels, switches that show on and off, and a warning mark that does not rely on colour. Lo zones stored as easting and northing can be shown as the surveyor's Y and X.</li>
+      </ul>
       <h3>0.3.2, 13 October 2026</h3>
       <ul>
         <li>New projects start by naming the data: drone photos, digital aerial photos, scanned film photos, satellite scenes or LiDAR point clouds. Each sets its own math model and the steps that lead the rail.</li>
