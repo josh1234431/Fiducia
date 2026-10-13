@@ -161,7 +161,7 @@
   --ink: #14181b;
   --ink-soft: #424b51;
   --ink-muted: #59626a;
-  --ink-faint: #6f787f;
+  --ink-faint: #69727a;
   --ink-inverse: #ffffff;
 
   --signal-good: #0d6b51;
@@ -665,6 +665,14 @@ select optgroup {
   color: var(--signal-bad);
   border-color: color-mix(in srgb, var(--signal-bad) 40%, transparent);
   background: color-mix(in srgb, var(--signal-bad) 11%, transparent);
+}
+/* Amber and green are equally bright, so they differ only in hue. A mark
+   that is not a colour says "look at this" to everyone. */
+.chip--warn::before,
+.chip--bad::before {
+  content: '▲';
+  font-size: 0.7em;
+  line-height: 1;
 }
 .chip--accent {
   color: var(--accent);

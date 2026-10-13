@@ -1655,9 +1655,11 @@
   min-height: 0;
   height: 20px;
 }
-.table .tone--good { color: var(--signal-good); font-weight: 700; }
-.table .tone--warn { color: var(--signal-warn); font-weight: 700; }
-.table .tone--bad { color: var(--signal-bad); font-weight: 700; }
+.table .tone--good { color: var(--signal-good); }
+.table .tone--warn { color: var(--signal-warn); font-weight: 800; }
+.table .tone--bad { color: var(--signal-bad); font-weight: 800; }
+.table .tone--warn::before,
+.table .tone--bad::before { content: '▲ '; font-size: 0.75em; }
 
 .table .num {
   font-family: var(--font-data);
@@ -2497,6 +2499,11 @@ kbd {
 }
 .measure__value--warn {
   color: var(--signal-warn);
+}
+.measure__value--warn::before {
+  content: '▲ ';
+  font-size: 0.55em;
+  vertical-align: 0.2em;
 }
 .measure__value--bad {
   color: var(--signal-bad);
