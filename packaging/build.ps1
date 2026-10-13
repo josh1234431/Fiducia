@@ -5,6 +5,8 @@
 # 1. Builds the interface (vite)            -> dist\
 # 2. Freezes the engine (PyInstaller)       -> <build>\engine\fiducia-engine\
 # 3. Packages both into an installer        -> <build>\release\Fiducia-Setup-<version>.exe
+#    and a copy named Fiducia-Setup.exe, uploaded to every release beside the
+#    versioned one so the website's download link never names a version.
 #
 # <build> is FIDUCIA_BUILD_DIR, or a Fiducia-build folder beside the
 # checkout. Not under AppData: a program started from a packaged app (such as
@@ -36,6 +38,10 @@ try {
     Write-Host '== Installer' -ForegroundColor Cyan
     npx electron-builder --win --config electron-builder.config.cjs
     if ($LASTEXITCODE) { throw 'Installer build failed' }
+
+    $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+    $release = Join-Path $build 'release'
+    Copy-Item (Join-Path $release "Fiducia-Setup-$version.exe") (Join-Path $release 'Fiducia-Setup.exe') -Force
 
     Write-Host "Done: $(Join-Path $build 'release')" -ForegroundColor Green
 }

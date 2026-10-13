@@ -79,9 +79,12 @@ blocks can be scripted without opening a window.
 npm run dist
 ```
 
-This produces `%LOCALAPPDATA%\Fiducia\build\release\Fiducia-Setup-<version>.exe`
-elease\Fiducia-Setup-<version>.exe`
-(about 185 MB). It builds the interface, freezes the engine with PyInstaller
+This produces `Fiducia-Setup-<version>.exe` (about 190 MB) in the `release`
+folder of the build directory: `FIDUCIA_BUILD_DIR`, or a `Fiducia-build`
+folder beside the checkout. Beside it is a copy named `Fiducia-Setup.exe`.
+Upload both to each release: the website downloads
+`releases/latest/download/Fiducia-Setup.exe`, which always names the newest
+installer, so the link keeps working even before the site is updated. It builds the interface, freezes the engine with PyInstaller
 (`engine/fiducia-engine.spec`, entry point `engine/packaged_main.py`) and packages both
 with electron-builder (`electron-builder.config.cjs`). The recipe is in
 `packaging/build.ps1`. Build output is kept outside OneDrive.
