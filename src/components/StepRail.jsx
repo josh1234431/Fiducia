@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { useStore, STEPS, stepStatus, stepsFor } from '../state/store'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useStore, STEPS, stepStatus, stepsFor, workflowOf } from '../state/store'
 import PanelToggle from './PanelToggle'
 
 const STATUS_TITLE = {
@@ -66,6 +66,59 @@ function Readout({ label, value, tone = '' }) {
   )
 }
 
+/** A point count as people say it: 0.55M, 84,210. */
+function points(n) {
+  return n >= 100000 ? `${(n / 1e6).toFixed(2)}M` : n.toLocaleString()
+}
+
+/**
+ * The readouts under the steps: the few numbers that say where this project
+ * stands, chosen for its kind of data. A LiDAR project has no photographs or
+ * tie points to count; a drone block's ground pixel matters more than its
+ * control. For photographs the last number is the check-point error, the one
+ * that says how accurate the result is. Sigma nought only says the weights
+ * suit the residuals, so it stays on the Model step as a diagnostic. No colour
+ * here: whether an error is good depends on the job, not on a fixed line.
+ */
+function readoutsFor({ workflow, summary, model, project, lidar, labelled }) {
+  if (workflow === 'lidar') {
+    if (!lidar || lidar.indexing) {
+      return [
+        { label: 'Point cloud', value: lidar?.indexing ? 'indexing…' : 'none open' },
+        { label: 'Clouds made', value: project?.lidarClouds?.length ?? 0 },
+        { label: 'Rasters made', value: project?.lidar?.length ?? 0 },
+      ]
+    }
+    const ground = (lidar.classHistogram?.['2']?.count || 0) / Math.max(lidar.pointCount, 1)
+    return [
+      { label: 'Points', value: points(lidar.pointCount) },
+      { label: 'Spacing', value: `${lidar.averageSpacing.toFixed(2)} m` },
+      { label: 'Ground', value: ground > 0 ? `${(ground * 100).toFixed(1)}%` : 'not found',
+        tone: ground > 0 ? '' : 'warn' },
+      ...(labelled ? [{ label: 'Labelled', value: labelled.toLocaleString() }] : []),
+    ]
+  }
+
+  const offline = summary && summary.imageCount !== summary.onlineCount
+  const rows = [{
+    label: { drone: 'Photos', satellite: 'Scenes' }[workflow] || 'Photographs',
+    value: summary ? (offline ? `${summary.onlineCount}/${summary.imageCount}` : summary.onlineCount) : 0,
+    tone: offline ? 'warn' : '',
+  }]
+  const gcps = summary?.gcpCount ?? 0
+  const checks = summary?.checkPointCount ?? 0
+  if (workflow !== 'drone' || gcps || checks) {
+    rows.push({ label: 'Control', value: `${gcps} GCP · ${checks} check` })
+  }
+  rows.push({ label: 'Tie points', value: (summary?.tiePointCount ?? 0).toLocaleString() })
+  const gsd = project?.droneBlock?.gsdM
+  if (workflow === 'drone' && gsd) rows.push({ label: 'Ground pixel', value: `${(gsd * 100).toFixed(1)} cm` })
+  if (model) {
+    rows.push({ label: 'Check RMS', value: model.rmsCheckM ? `${model.rmsCheckM.toFixed(2)} m` : 'no check points' })
+  }
+  return rows
+}
+
 /**
  * The processing rail.
  *
@@ -82,6 +135,8 @@ export default function StepRail() {
   const summary = useStore((s) => s.summary)
   const model = useStore((s) => s.project?.model)
   const project = useStore((s) => s.project)
+  const lidar = useStore((s) => s.lidarSummary)
+  const labelled = useStore((s) => s.lidarLabelCount)
   const statuses = useStore((s) =>
     Object.fromEntries(STEPS.map((step) => [step.id, stepStatus(s, step.id)])),
   )
@@ -127,7 +182,28 @@ export default function StepRail() {
     return () => clearTimeout(timer)
   }, [statuses])
 
-  const doneCount = primary.filter((step) => statuses[step.id] === 'done').length
+  // The spine runs from the top of the rail to the mark of the last finished
+  // step in the workflow, so the line joins the ticks rather than standing for
+  // a fraction of the rail's height.
+  const railRef = useRef(null)
+  const spineRef = useRef(null)
+  const stepRefs = useRef({})
+  const [spineTo, setSpineTo] = useState(0)
+  const lastDone = primary.map((step) => statuses[step.id]).lastIndexOf('done')
+  const lastDoneId = lastDone >= 0 ? primary[lastDone].id : null
+  useLayoutEffect(() => {
+    function measure() {
+      const mark = lastDoneId && stepRefs.current[lastDoneId]?.querySelector('.mark')
+      const spine = spineRef.current
+      if (!mark || !spine) { setSpineTo(0); return }
+      const m = mark.getBoundingClientRect()
+      setSpineTo(Math.max(0, m.top + m.height / 2 - spine.getBoundingClientRect().top))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    if (railRef.current) observer.observe(railRef.current)
+    return () => observer.disconnect()
+  }, [lastDoneId, primary.length])
 
   function renderStep(step) {
     const status = statuses[step.id]
@@ -135,6 +211,7 @@ export default function StepRail() {
     return (
       <button
         key={step.id}
+        ref={(el) => { if (el) stepRefs.current[step.id] = el }}
         className={[
           'step',
           activeStep === step.id ? 'step--active' : '',
@@ -157,18 +234,15 @@ export default function StepRail() {
   }
 
   return (
-    <nav className="rail">
+    <nav className="rail" ref={railRef}>
       <div className="rail__head">
         <PanelToggle side="left" open onToggle={toggleRail} label="steps" shortcut="Ctrl B" />
         <span className="rail__head-label">Steps</span>
       </div>
 
-      {/* Progress down the spine of the rail: how much of the chain is done. */}
-      <div className="rail__spine" aria-hidden="true">
-        <div
-          className="rail__spine-fill"
-          style={{ height: `${(doneCount / primary.length) * 100}%` }}
-        />
+      {/* Progress down the spine of the rail, as far as the last finished step. */}
+      <div className="rail__spine" aria-hidden="true" ref={spineRef}>
+        <div className="rail__spine-fill" style={{ height: `${spineTo}px` }} />
       </div>
 
       <div className="rail__steps">
@@ -190,29 +264,8 @@ export default function StepRail() {
       </div>
 
       <div className="rail__readout">
-        <Readout
-          label="Photographs"
-          value={
-            summary
-              ? summary.imageCount !== summary.onlineCount
-                ? `${summary.onlineCount}/${summary.imageCount}`
-                : summary.onlineCount
-              : 0
-          }
-          tone={summary && summary.imageCount !== summary.onlineCount ? 'warn' : ''}
-        />
-        <Readout
-          label="Control"
-          value={`${summary?.gcpCount ?? 0}, ${summary?.checkPointCount ?? 0}`}
-        />
-        <Readout label="Tie points" value={summary?.tiePointCount ?? 0} />
-        {model && (
-          <Readout
-            label="Sigma nought"
-            value={model.sigma0?.toFixed(4) ?? '—'}
-            tone={model.converged ? 'good' : 'warn'}
-          />
-        )}
+        {readoutsFor({ workflow: workflowOf(project).id, summary, model, project, lidar, labelled })
+          .map((row) => <Readout key={row.label} label={row.label} value={row.value} tone={row.tone} />)}
       </div>
     </nav>
   )

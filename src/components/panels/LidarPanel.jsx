@@ -33,6 +33,11 @@ export default function LidarPanel() {
   const reference = useStore((s) => s.reference)
   const [summary, setSummary] = useState(null)
   const [labelCounts, setLabelCounts] = useState(null)
+  // The rail's readouts show the open cloud too, after leaving this step.
+  const setLidarSummary = useStore((s) => s.setLidarSummary)
+  const setLidarLabelCount = useStore((s) => s.setLidarLabelCount)
+  useEffect(() => { if (summary || !source) setLidarSummary(summary) }, [summary, source]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setLidarLabelCount(labelCounts?.count ?? null) }, [labelCounts]) // eslint-disable-line react-hooks/exhaustive-deps
   const [noise, setNoise] = useState({
     method: 'statistical', neighbours: 8, stdRatio: 2.5, radius: 2.0, minNeighbours: 3,
   })

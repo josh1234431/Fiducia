@@ -251,6 +251,8 @@ export const useStore = create((set, get) => ({
   pendingPoint: null,         // { imageId, col, row }: a clicked point not yet accepted
   stereoPair: null,           // { leftId, rightId }: the pair shown side by side in Stereo DEM
   lidarCloud: null,           // path of the point cloud open in the LiDAR step
+  lidarSummary: null,         // what the engine says about that cloud: points, spacing, classes
+  lidarLabelCount: null,      // how many of its points carry a label
   lidarSection: null,         // { start: [x, y], end: [x, y], width }: the side view's corridor
   lidarBrush: null,           // the class new labels get in the side view, or null to pan
   lidarColour: 'height',      // how the point cloud view colours points: height, class or labels
@@ -614,6 +616,8 @@ export const useStore = create((set, get) => ({
       pendingPoint: null,
       stereoPair: null,
       lidarCloud: null,
+      lidarSummary: null,
+      lidarLabelCount: null,
       lidarSection: null,
       lidarBrush: null,
       outputView: null,
@@ -705,6 +709,8 @@ export const useStore = create((set, get) => ({
   setLidarCloud: (lidarCloud, { keepSection = false } = {}) =>
     set((state) => ({ lidarCloud, lidarSection: keepSection ? state.lidarSection : null })),
   setLidarColour: (lidarColour) => set({ lidarColour }),
+  setLidarSummary: (lidarSummary) => set({ lidarSummary }),
+  setLidarLabelCount: (lidarLabelCount) => set({ lidarLabelCount }),
   setLidarSection: (lidarSection) => set({ lidarSection }),
   setLidarBrush: (lidarBrush) => set({ lidarBrush }),
   bumpLidarLabels: () => set((state) => ({ lidarLabelsVersion: state.lidarLabelsVersion + 1 })),

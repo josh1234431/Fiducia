@@ -416,8 +416,7 @@
   width: 100%;
   background: linear-gradient(180deg, var(--accent-bright), var(--accent));
   border-radius: var(--radius-pill);
-  box-shadow: var(--glow-good);
-  transition: height var(--slow) var(--ease-spring);
+  transition: height var(--slow) var(--ease-swift);
 }
 
 .rail__steps {
