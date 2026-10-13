@@ -1581,6 +1581,29 @@
   background: var(--accent-wash);
 }
 
+/* The control table: dense, so many points fit without scrolling far. */
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 calc(-1 * var(--step-2));
+}
+.table--control td,
+.table--control th {
+  padding: 3px 5px;
+}
+.table--control .table__actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.table--control .table__actions .btn {
+  padding: 0 4px;
+  min-width: 0;
+  min-height: 0;
+  height: 20px;
+}
+.table .tone--good { color: var(--signal-good); font-weight: 700; }
+.table .tone--warn { color: var(--signal-warn); font-weight: 700; }
+.table .tone--bad { color: var(--signal-bad); font-weight: 700; }
+
 .table .num {
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;

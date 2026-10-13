@@ -3,7 +3,7 @@ import { useStore, selectActiveImage } from '../../state/store'
 import { api } from '../../lib/api'
 import { axisLabels } from '../../lib/axes'
 import InfoTip from '../InfoTip'
-import { fitRule, fitToneM, fitTonePx } from '../../lib/quality'
+import { accuracyTone, fitRule, fitToneM, fitTonePx } from '../../lib/quality'
 
 /**
  * Ground control and tie points.
@@ -485,75 +485,20 @@ export default function PointsPanel() {
             provide redundancy.
           </div>
         ) : (
-          <div className="rows">
-            {gcps.map((gcp) => {
-              const rays = observationsFor(gcp.id)
-              const complete = gcp.x != null && gcp.y != null && gcp.z != null
-              return (
-                <div
-                  key={gcp.id}
-                  className={`row ${selectedPointId === gcp.id ? 'row--active' : ''}`}
-                  onMouseEnter={() => setSelectedPoint(gcp.id)}
-                  onMouseLeave={() => setSelectedPoint(null)}
-                >
-                  <div className="row__main">
-                    <div className="row__name">
-                      {gcp.id}
-                      {gcp.isCheckPoint && <span className="chip">check</span>}
-                      {rays.length > 1 && (
-                        <span className="chip">{rays.length} rays</span>
-                      )}
-                      {!complete && <span className="chip chip--warn">incomplete</span>}
-                      {preview?.ready && residualOf[gcp.id] && (
-                        <span
-                          className={`chip ${preview.worst === gcp.id ? 'chip--bad'
-                            : ((tone) => (tone ? `chip--${tone}` : ''))(residualOf[gcp.id].px != null
-                              ? fitTonePx(residualOf[gcp.id].px)
-                              : fitToneM(residualOf[gcp.id].groundM, project))}`}
-                          title={(residualOf[gcp.id].px != null
-                            ? `${residualOf[gcp.id].px.toFixed(1)} px on this image. ` : '') + fitRule(project)}
-                        >
-                          {residualOf[gcp.id].groundM.toFixed(2)} m
-                        </span>
-                      )}
-                    </div>
-                    <div className="row__meta truncate">
-                      {complete
-                        ? `${Number(gcp.x).toFixed(2)} ${axes.firstShort}, `
-                          + `${Number(gcp.y).toFixed(2)} ${axes.secondShort}, `
-                          + `${Number(gcp.z).toFixed(2)} m`
-                        : 'Coordinates incomplete'}
-                    </div>
-                  </div>
-                  <div className="row__actions">
-                    <button
-                      className="btn btn--ghost btn--sm"
-                      title="Measure on the current image"
-                      onClick={() => startMeasure(gcp)}
-                      disabled={!image}
-                    >
-                      +ray
-                    </button>
-                    <button
-                      className="btn btn--ghost btn--sm"
-                      title={gcp.isCheckPoint
-                        ? 'Use in the solution' : 'Exclude from the solution'}
-                      onClick={() => call(
-                        () => api.model.setCheckPoint(gcp.id, !gcp.isCheckPoint))}
-                    >
-                      {gcp.isCheckPoint ? '↺' : '⊘'}
-                    </button>
-                    <button
-                      className="btn btn--ghost btn--sm btn--danger"
-                      onClick={() => call(() => api.points.deleteGcp(gcp.id))}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <ControlTable
+            gcps={gcps}
+            project={project}
+            image={image}
+            preview={preview}
+            residualOf={residualOf}
+            selectedPointId={selectedPointId}
+            setSelectedPoint={setSelectedPoint}
+            observationsFor={observationsFor}
+            axes={axes}
+            onMeasure={startMeasure}
+            onToggleCheck={(gcp) => call(() => api.model.setCheckPoint(gcp.id, !gcp.isCheckPoint))}
+            onDelete={(gcp) => call(() => api.points.deleteGcp(gcp.id))}
+          />
         )}
       </section>
 
@@ -873,6 +818,138 @@ export default function PointsPanel() {
  * misplaced click shows up while the point is still fresh in mind -- not an
  * hour later, as a bad adjustment.
  */
+/**
+ * The control points as a table, worst first: what a check of the control
+ * needs to see at once. Errors are the block solution's (surveyed minus
+ * adjusted); "This photo" is the live fit of the photo on screen. Control
+ * points are coloured by the fit rule, check points by the accuracy target.
+ */
+function ControlTable({
+  gcps, project, image, preview, residualOf, selectedPointId, setSelectedPoint,
+  observationsFor, axes, onMeasure, onToggleCheck, onDelete,
+}) {
+  const [sort, setSort] = useState({ key: 'error', descending: true })
+  const residuals = project?.model?.controlResidualsM || {}
+  const target = project?.accuracyTarget || {}
+
+  const rows = gcps.map((gcp) => {
+    const r = residuals[gcp.id]
+    const dz = r && r[2] != null && Number.isFinite(r[2]) ? r[2] : null
+    const horizontal = r && Number.isFinite(r[0]) ? Math.hypot(r[0], r[1]) : null
+    const rays = observationsFor(gcp.id).length
+    const live = preview?.ready ? residualOf[gcp.id] : null
+    return {
+      gcp, rays, r, horizontal, dz, live,
+      complete: gcp.x != null && gcp.y != null && gcp.z != null,
+      error: horizontal == null ? -1 : Math.hypot(horizontal, dz ?? 0),
+    }
+  })
+  const value = {
+    id: (row) => row.gcp.id,
+    rays: (row) => row.rays,
+    error: (row) => row.error,
+    horizontal: (row) => row.horizontal ?? -1,
+    dz: (row) => (row.dz == null ? -1 : Math.abs(row.dz)),
+    px: (row) => row.live?.px ?? -1,
+  }[sort.key]
+  rows.sort((a, b) => {
+    const x = value(a)
+    const y = value(b)
+    const order = typeof x === 'string' ? x.localeCompare(y, undefined, { numeric: true }) : x - y
+    return sort.descending ? -order : order
+  })
+
+  const header = (key, label, title, numeric = true) => (
+    <th
+      className={numeric ? 'num' : ''}
+      title={title}
+      aria-sort={sort.key === key ? (sort.descending ? 'descending' : 'ascending') : 'none'}
+      onClick={() => setSort({ key, descending: sort.key === key ? !sort.descending : key !== 'id' })}
+      style={{ cursor: 'pointer' }}
+    >
+      {label}{sort.key === key ? (sort.descending ? ' ↓' : ' ↑') : ''}
+    </th>
+  )
+  const toneClass = (tone) => (tone ? `tone--${tone}` : '')
+  // Two decimals, without the "-0.00" of a tiny negative.
+  const metres = (v) => (Math.abs(v) < 0.005 ? 0 : v).toFixed(2)
+
+  return (
+    <div className="table-scroll">
+      <table className="table table--control">
+        <thead>
+          <tr>
+            {header('id', 'Point', 'Control holds the solution; a check point only tests it', false)}
+            {header('rays', 'Rays', 'Photos the point is measured on')}
+            {header('horizontal', 'XY m', 'Horizontal error in the block solution, surveyed minus adjusted')}
+            {header('dz', 'Z m', 'Height error in the block solution, surveyed minus adjusted')}
+            {header('px', 'Photo px', `Fit on ${image?.name || 'the photo on screen'} on its own, in pixels`)}
+            <th aria-label="Actions" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ gcp, rays, r, horizontal, dz, live, complete }) => {
+            const check = gcp.isCheckPoint
+            const onePhoto = check && rays === 1
+            const xyTone = horizontal == null ? ''
+              : check ? accuracyTone(horizontal, target.horizontalM) : fitToneM(horizontal, project)
+            const zTone = dz == null || !check ? '' : accuracyTone(Math.abs(dz), target.verticalM)
+            const where = complete
+              ? `${Number(gcp.x).toFixed(2)} ${axes.firstShort}, ${Number(gcp.y).toFixed(2)} ${axes.secondShort}, ${Number(gcp.z).toFixed(2)} m`
+              : 'Coordinates incomplete'
+            return (
+              <tr
+                key={gcp.id}
+                className={selectedPointId === gcp.id ? 'is-selected' : ''}
+                onMouseEnter={() => setSelectedPoint(gcp.id)}
+                onMouseLeave={() => setSelectedPoint(null)}
+              >
+                <td title={where}>
+                  <strong>{gcp.id}</strong>
+                  {check && <span className="dim"> check</span>}
+                  {!complete && <span className="chip chip--warn" style={{ marginLeft: 4 }}>incomplete</span>}
+                  {onePhoto && (
+                    <span className="chip chip--warn" style={{ marginLeft: 4 }}
+                          title="Measured on one photo only: it checks position at its surveyed height, not height. Measure it on a second photo.">
+                      1 photo
+                    </span>
+                  )}
+                </td>
+                <td className="num">{rays}</td>
+                <td className={`num ${toneClass(xyTone)}`}
+                    title={r ? `dX ${r[0].toFixed(3)} m, dY ${r[1].toFixed(3)} m` : 'Not in the solution yet'}>
+                  {horizontal == null ? '—' : metres(horizontal)}
+                </td>
+                <td className={`num ${toneClass(zTone)}`}
+                    title={onePhoto ? 'Height not checked: measured on one photo' : ''}>
+                  {dz == null ? (onePhoto ? 'n/c' : '—') : metres(dz)}
+                </td>
+                <td className={`num ${preview?.worst === gcp.id ? 'tone--bad'
+                  : toneClass(live?.px != null ? fitTonePx(live.px) : '')}`}
+                    title={live ? `${live.groundM.toFixed(2)} m on the ground. ${fitRule(project)}` : ''}>
+                  {live?.px != null ? live.px.toFixed(1) : '—'}
+                </td>
+                <td className="table__actions">
+                  <button className="btn btn--ghost btn--sm" title="Measure on the current image"
+                          aria-label="Measure on the current image"
+                          onClick={() => onMeasure(gcp)} disabled={!image}>+</button>
+                  <button className="btn btn--ghost btn--sm"
+                          title={check ? 'Use as control: in the solution' : 'Use as a check point: out of the solution, testing it'}
+                          onClick={() => onToggleCheck(gcp)}>
+                    {check ? '↺' : '⊘'}
+                  </button>
+                  <button className="btn btn--ghost btn--sm btn--danger" title="Delete the point"
+                          onClick={() => onDelete(gcp)}>✕</button>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function LivePreview({ preview, image, onFix }) {
   const project = useStore((s) => s.project)
   if (!image || !preview) return null
