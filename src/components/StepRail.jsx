@@ -7,6 +7,7 @@ const STATUS_TITLE = {
   attention: 'Needs attention',
   ready: 'Ready',
   locked: 'Requires the preceding steps',
+  stale: 'Out of date: made before the latest changes. Run it again.',
 }
 
 /**
@@ -220,7 +221,7 @@ export default function StepRail() {
         ].join(' ')}
         onClick={() => !locked && setStep(step.id)}
         disabled={locked}
-        title={locked ? STATUS_TITLE.locked : step.blurb}
+        title={locked ? STATUS_TITLE.locked : status === 'stale' ? STATUS_TITLE.stale : step.blurb}
       >
         <StatusMark status={status} celebrate={!!celebrating[step.id]} />
         <span className="step__text">

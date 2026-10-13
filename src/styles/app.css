@@ -603,6 +603,18 @@
   opacity: 0.32;
 }
 
+/* Done once, but made from something that has changed since: the tick
+   stays, drawn in amber on an open ring, until the step is run again. */
+.mark--stale .mark__ring {
+  stroke: var(--signal-warn);
+  opacity: 1;
+}
+.mark--stale .mark__tick {
+  stroke: var(--signal-warn);
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+
 /*
  * The moment a step completes. The disc pops past its size and settles, the
  * tick draws itself, and a ring expands away. It plays once, on the

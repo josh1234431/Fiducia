@@ -43,6 +43,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from . import staleness
 from .storage import FSYNC_UNSUPPORTED, StorageError, explain, probe
 
 __all__ = ["Project", "ProjectError", "StorageError", "SCHEMA_VERSION", "new_state"]
@@ -731,6 +732,7 @@ class Project:
             "tiePointCount": len(self.state.get("tiePoints", [])),
             "hasModel": self.state.get("model") is not None,
             "orthoCount": len(self.state.get("orthos", [])),
+            "stale": staleness.report(self.state),
             "recoveredOperations": self.state.get("_recoveredOperations", 0),
             "storage": self.storage_problem.to_dict() if self.storage_problem else None,
         }

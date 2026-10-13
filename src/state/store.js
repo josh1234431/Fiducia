@@ -851,6 +851,25 @@ export function stepStatus(state, stepId) {
   const project = state.project
   if (!project) return stepId === 'project' ? 'ready' : 'locked'
 
+  // Out of date: done, but made from something that has changed since. It
+  // runs down the chain -- control changed, so the solution is out of date,
+  // so everything made from it is too.
+  const stale = state.summary?.stale || {}
+  const modelStale = !!(project.model && stale.model)
+  const orthosStale = (project.orthos || []).length > 0 && (modelStale || (stale.orthos || []).length > 0)
+  const staleFor = {
+    model: modelStale,
+    ortho: orthosStale,
+    mosaic: (project.mosaics || []).length > 0 && (orthosStale || (stale.mosaics || []).length > 0),
+    dem: (project.stereoDems || []).length > 0 && (modelStale || (stale.stereoDems || []).length > 0),
+  }
+  const status = baseStatus(state, stepId)
+  return status === 'done' && staleFor[stepId] ? 'stale' : status
+}
+
+function baseStatus(state, stepId) {
+  const project = state.project
+
   const camera = project.camera || {}
   const projection = project.projection || {}
   const images = project.images || []
@@ -882,7 +901,7 @@ export function stepStatus(state, stepId) {
       case 'dem':
         if (!project.model || !block?.surface) return 'locked'
         if (!block.dense) return 'ready'
-        return block.dense.stale ? 'attention' : 'done'
+        return block.dense.stale ? 'stale' : 'done'
       default:
         break
     }

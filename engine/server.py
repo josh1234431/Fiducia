@@ -51,7 +51,7 @@ from fiducia import camera as camera_mod
 from fiducia import (
     auto_control, stereo_dem, exchange, geodesy, mosaic, fiducial_detection, satellite_rpc,
     ortho, certificate_reader, raster, reports, lidar, terrain, classic_report, tiepoints,
-    placement, lidar_learn,
+    placement, lidar_learn, staleness,
 )
 from fiducia import bundle as bundle_module
 from fiducia.bundle import BundleInput, Observation, adjust_block, corner_uncertainty
@@ -2990,6 +2990,10 @@ def model_compute(payload: dict = Body(default={})) -> dict:
                 {key: calibration[key] for key in ("set", "radiusMm", "values", "sigmas")}
                 if calibration and calibration.get("values") else None)
             state["camera"] = camera_state
+            # What this solution was made from, and what it is, so later
+            # results can tell when they are out of date.
+            state["model"]["inputsFingerprint"] = staleness.model_inputs(state)
+            state["model"]["solutionFingerprint"] = staleness.solution(state["model"])
 
         project.mutate("model_compute", apply)
         broadcast({"type": "project.changed", "operation": "model_compute"})
@@ -3143,6 +3147,7 @@ def ortho_generate(payload: dict = Body(...)) -> dict:
                     "pixelSize": entry["pixelSize"],
                     "validFraction": entry["validFraction"],
                     "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "solution": (state.get("model") or {}).get("solutionFingerprint"),
                 }
                 state["orthos"] = [o for o in state["orthos"] if o["id"] != record["id"]]
                 state["orthos"].append(record)
@@ -3318,6 +3323,9 @@ def mosaic_generate(payload: dict = Body(...)) -> dict:
                 "inputs": result.inputs_used,
                 "settings": spec.to_dict(),
                 "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                # The orthophotos it joined, as they were, to tell when one is remade.
+                "orthos": {o["id"]: o.get("generatedAt") for o in state.get("orthos", [])
+                           if o.get("path") in set(result.inputs_used)},
             }
             # Regenerating overwrites the file; keep one row per file.
             state["mosaics"] = [m for m in state.get("mosaics", [])
@@ -3542,6 +3550,7 @@ def dem_extract(payload: dict = Body(...)) -> dict:
                     "resolution": entry["resolution"],
                     "coverage": entry["coverage"],
                     "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "solution": (state.get("model") or {}).get("solutionFingerprint"),
                 })
             if merged:
                 state["stereoDems"].append({
@@ -3551,6 +3560,7 @@ def dem_extract(payload: dict = Body(...)) -> dict:
                     "resolution": produced[0].get("resolution"),
                     "coverage": merged.get("coverage", produced[0].get("coverage", 1.0)),
                     "generatedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "solution": (state.get("model") or {}).get("solutionFingerprint"),
                 })
                 state["dem"]["extractedPath"] = state["stereoDems"][-1]["path"]
             elif produced:

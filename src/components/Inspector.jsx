@@ -1,4 +1,4 @@
-import { useStore, stepsFor } from '../state/store'
+import { useStore, stepsFor, stepStatus } from '../state/store'
 import ProjectPanel from './panels/ProjectPanel'
 import CameraPanel from './panels/CameraPanel'
 import ImagesPanel from './panels/ImagesPanel'
@@ -27,6 +27,15 @@ const PANELS = {
   reports: ReportsPanel,
 }
 
+// Why a step that was done is now out of date, in the words of each step.
+const STALE_REASON = {
+  model: 'The control, the measurements or the camera have changed since this solution '
+    + 'was computed. Compute it again; everything made from it follows.',
+  ortho: 'Made from an earlier solution. Generate the orthophotos again.',
+  mosaic: 'Made from orthophotos that have changed since. Generate the mosaic again.',
+  dem: 'Made from an earlier solution. Extract the elevation again.',
+}
+
 /**
  * The contextual panel. Exactly one step's controls at a time, docked rather
  * than floating — so nothing ever covers the imagery you are measuring on.
@@ -39,6 +48,7 @@ export default function Inspector() {
   const steps = stepsFor(project).all
   const step = steps.find((s) => s.id === activeStep) || steps[0]
   const Panel = PANELS[activeStep] || ProjectPanel
+  const stale = useStore((s) => stepStatus(s, activeStep) === 'stale')
 
   return (
     <aside className="inspector">
@@ -49,6 +59,14 @@ export default function Inspector() {
           <PanelToggle side="right" open onToggle={toggleInspector} label="inspector" shortcut="Ctrl \" />
         </div>
         <div className="inspector__blurb">{step.blurb}</div>
+        {stale && (
+          <div className="readiness" style={{ marginTop: 'var(--step-3)', borderLeftColor: 'var(--signal-warn)' }}>
+            <div className="readiness__item readiness__item--warning">
+              <span className="dot" />
+              <span>{STALE_REASON[activeStep] || 'Out of date: made before the latest changes. Run it again.'}</span>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="inspector__body">

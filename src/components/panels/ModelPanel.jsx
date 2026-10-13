@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useStore } from '../../state/store'
+import { useStore, stepStatus } from '../../state/store'
 import { api } from '../../lib/api'
 import InfoTip from '../InfoTip'
 import { accuracyTone, fitRule, fitToneM } from '../../lib/quality'
@@ -14,6 +14,10 @@ import { accuracyTone, fitRule, fitToneM } from '../../lib/quality'
  */
 export default function ModelPanel() {
   const project = useStore((s) => s.project)
+  // The button leads only when there is something to do: no solution yet,
+  // one that failed, or one whose inputs have changed since.
+  const stale = useStore((s) => stepStatus(s, 'model') === 'stale')
+  const needsSolving = !project?.model || !project.model.converged || stale
   const readiness = useStore((s) => s.readiness)
   const refreshReadiness = useStore((s) => s.refreshReadiness)
   const call = useStore((s) => s.call)
@@ -90,11 +94,11 @@ export default function ModelPanel() {
         <AdjustmentSettings project={project} call={call} />
 
         <button
-          className="btn btn--primary btn--block"
+          className={`btn btn--block ${needsSolving ? 'btn--primary' : ''}`}
           disabled={!readiness?.ready}
           onClick={() => call(() => api.model.compute())}
         >
-          Compute model
+          {needsSolving ? 'Compute model' : 'Compute again'}
         </button>
 
         {readiness && (

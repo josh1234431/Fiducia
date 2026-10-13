@@ -98,10 +98,20 @@ export default function ProjectPanel() {
           <button
             key={option.id}
             className={`option ${workflow.id === option.id ? 'option--on' : ''}`}
-            onClick={() => patchProject({
-              workflow: option.id,
-              ...(option.mathModel ? { mathModel: { ...mathModel, kind: option.mathModel } } : {}),
-            })}
+            onClick={() => {
+              if (option.id === workflow.id) return
+              // Changing the math model under a solved block makes the solution,
+              // and everything made from it, out of date. Say so first.
+              const changesModel = option.mathModel && option.mathModel !== (mathModel.kind || 'aerial_film')
+              if (changesModel && project.model && !window.confirm(
+                `This project has a solution. ${option.name} uses a different math model, so the `
+                + 'solution and everything made from it will need computing again. Nothing is '
+                + 'deleted. Change it?')) return
+              patchProject({
+                workflow: option.id,
+                ...(option.mathModel ? { mathModel: { ...mathModel, kind: option.mathModel } } : {}),
+              })
+            }}
           >
             <span className="option__name">{option.name}</span>
             <span className="option__hint">{option.hint}</span>
