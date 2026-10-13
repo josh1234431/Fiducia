@@ -105,7 +105,7 @@ export default function MosaicPanel() {
               {viewingOutput
                 ? 'A generated mosaic is on the canvas.'
                 : 'Shown on the canvas, and updated as you change the settings below.'}
-              {busy && <span className="chip chip--accent" style={{ marginLeft: 6 }}>updating</span>}
+              {busy && <span className="chip" style={{ marginLeft: 6 }}>updating</span>}
             </div>
             {viewingOutput && (
               <button className="btn btn--block btn--sm" style={{ marginTop: 6 }}

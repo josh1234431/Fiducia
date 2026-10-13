@@ -228,7 +228,7 @@ export default function ImagesPanel() {
                         <span className="chip">GPS</span>
                       )}
                       {entry.exterior && entry.exteriorSource !== 'gnss' && (
-                        <span className="chip chip--accent">solved</span>
+                        <span className="chip">solved</span>
                       )}
                     </div>
                     <div className="row__meta truncate">

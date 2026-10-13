@@ -659,7 +659,8 @@ export default function ImageViewer({ imageId: fixedId, onImageChange, popout = 
 
         <div className="toolgroup">
           <button
-            className={`toolgroup__btn ${showOverlays ? 'toolgroup__btn--on' : ''}`}
+            className={`toolgroup__btn toolgroup__btn--switch ${showOverlays ? 'toolgroup__btn--on' : ''}`}
+            aria-pressed={showOverlays}
             onClick={() => setShowOverlays((v) => !v)}
             title="Show measured points and marks"
           >
@@ -667,7 +668,8 @@ export default function ImageViewer({ imageId: fixedId, onImageChange, popout = 
           </button>
           {project?.model?.residuals && (
             <button
-              className={`toolgroup__btn ${showResiduals ? 'toolgroup__btn--on' : ''}`}
+              className={`toolgroup__btn toolgroup__btn--switch ${showResiduals ? 'toolgroup__btn--on' : ''}`}
+              aria-pressed={showResiduals}
               onClick={() => setShowResiduals((v) => !v)}
               title="Residual vectors"
             >
@@ -821,6 +823,7 @@ export default function ImageViewer({ imageId: fixedId, onImageChange, popout = 
           </div>
         ))}
 
+
         {pickMode?.loupe && loupeEnabled && view.scale < 1 && cursor && pointer && pyramid && (
           <Loupe
             image={image}
@@ -835,11 +838,27 @@ export default function ImageViewer({ imageId: fixedId, onImageChange, popout = 
         )}
       </div>
 
+      {/* What the marks are: only the kinds on this photo. */}
+      {markers.length > 0 && (
+        <div className="viewer__legend">
+          {[['gcp', 'Control'], ['check', 'Check'], ['tie', 'Tie point'], ['fiducial', 'Fiducial']]
+            .filter(([kind]) => markers.some((m) => m.kind === kind))
+            .map(([kind, label]) => (
+              <span key={kind} className="viewer__legend-item">
+                <span className={`viewer__legend-mark marker--${kind}`}>
+                  <span className="marker__cross" />
+                  <span className="marker__ring" />
+                </span>
+                {label}
+              </span>
+            ))}
+        </div>
+      )}
       {residualPlot && (
         <div className="residuals__scalebar">
           <span className="residuals__rule" />
           <span className="residuals__cell">
-            exaggerated ×{residualPlot.factor.toLocaleString()}
+            residual, exaggerated ×{residualPlot.factor.toLocaleString()}
           </span>
           <span className="residuals__cell">
             worst {(residualPlot.worst * residualPlot.mmPerPixel * 1000).toFixed(1)} µm

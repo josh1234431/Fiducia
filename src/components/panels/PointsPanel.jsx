@@ -501,7 +501,7 @@ export default function PointsPanel() {
                       {gcp.id}
                       {gcp.isCheckPoint && <span className="chip">check</span>}
                       {rays.length > 1 && (
-                        <span className="chip chip--accent">{rays.length} rays</span>
+                        <span className="chip">{rays.length} rays</span>
                       )}
                       {!complete && <span className="chip chip--warn">incomplete</span>}
                       {preview?.ready && residualOf[gcp.id] && (
@@ -668,7 +668,7 @@ export default function PointsPanel() {
               <div key={entry.imageId} style={{ marginBottom: 'var(--step-3)' }}>
                 <div className="row__name" style={{ marginBottom: 4 }}>
                   {entry.name}
-                  <span className={entry.error ? 'chip chip--bad' : 'chip chip--accent'}>
+                  <span className={entry.error ? 'chip chip--bad' : 'chip'}>
                     {entry.error ? 'failed' : (entry.proposals || []).length + ' found'}
                   </span>
                 </div>
@@ -874,6 +874,7 @@ export default function PointsPanel() {
  * hour later, as a bad adjustment.
  */
 function LivePreview({ preview, image, onFix }) {
+  const project = useStore((s) => s.project)
   if (!image || !preview) return null
 
   const setup = preview.setupProblems || []
@@ -917,10 +918,13 @@ function LivePreview({ preview, image, onFix }) {
       <div className="readiness__item">
         <span className="dot" style={{ background: tone }} />
         <span>
-          <strong>Residuals, {image.name}</strong>: RMS{' '}
-          <span className="numeric">{preview.rmsGroundM.toFixed(2)} m</span>
-          {preview.rmsPx != null && <> ({preview.rmsPx.toFixed(1)} px)</>}
-          {' '}from {preview.count} points ({preview.degreesOfFreedom} redundant).
+          <strong>{image.name} on its own</strong>: RMS{' '}
+          {preview.rmsPx != null ? (
+            <><span className="numeric">{preview.rmsPx.toFixed(1)} px</span>
+              {' '}({preview.rmsGroundM.toFixed(2)} m on the ground)</>
+          ) : <span className="numeric">{preview.rmsGroundM.toFixed(2)} m</span>}
+          {' '}from {preview.count} control points ({preview.degreesOfFreedom} redundant),
+          before the block is adjusted. {fitRule(project)}
         </span>
       </div>
       {worst && (

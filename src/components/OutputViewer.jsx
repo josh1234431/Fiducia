@@ -239,7 +239,8 @@ export function MosaicPreviewStage() {
           <span className="toolgroup__btn toolgroup__btn--note">Mosaic preview</span>
         </div>
         <div className="toolgroup">
-          <button className={`toolgroup__btn ${seams ? 'toolgroup__btn--on' : ''}`}
+          <button className={`toolgroup__btn toolgroup__btn--switch ${seams ? 'toolgroup__btn--on' : ''}`}
+                  aria-pressed={seams}
                   onClick={() => setSeams(!seams)} title="Show which image each part comes from">
             Seams
           </button>

@@ -137,21 +137,40 @@ export default function ModelPanel() {
 
             <div className="measures">
               <div className="measure">
-                <div className="measure__name">Sigma-0</div>
+                <div className="measure__name">
+                  Sigma nought (σ₀)
+                  <InfoTip>
+                    How well the residuals match the weights given to the measurements.
+                    Near 1 the weights are right. It says nothing about accuracy: a block can
+                    fit itself perfectly and still be in the wrong place. Accuracy comes
+                    from the check points.
+                  </InfoTip>
+                </div>
                 <div className="measure__value">{model.sigma0?.toFixed(4) ?? '—'}</div>
               </div>
               <div className="measure">
-                <div className="measure__name">Image RMS</div>
-                <div className="measure__value">
-                  {model.rmsImageMm != null
-                    ? `${(model.rmsImageMm * 1000).toFixed(1)}µm` : '—'}
+                <div className="measure__name">
+                  Image RMS
+                  <InfoTip>
+                    Every measurement on every photo, after the whole block is adjusted
+                    together. The Control step shows something different: one photo on its
+                    own against its control, before the adjustment.
+                  </InfoTip>
                 </div>
-                {model.rmsImageMm != null && project?.camera?.kind === 'digital'
-                  && project.camera.pixelPitchMm > 0 && (
-                  <div className="field__hint">
-                    {(model.rmsImageMm / project.camera.pixelPitchMm).toFixed(2)} px
-                  </div>
-                )}
+                {(() => {
+                  const pixel = model.pixelMm
+                    || (project?.camera?.kind === 'digital' && project.camera.pixelPitchMm > 0
+                      ? project.camera.pixelPitchMm : null)
+                  if (model.rmsImageMm == null) return <div className="measure__value">—</div>
+                  return pixel ? (
+                    <>
+                      <div className="measure__value">{(model.rmsImageMm / pixel).toFixed(2)} px</div>
+                      <div className="field__hint">{(model.rmsImageMm * 1000).toFixed(1)} µm on the image</div>
+                    </>
+                  ) : (
+                    <div className="measure__value">{(model.rmsImageMm * 1000).toFixed(1)} µm</div>
+                  )
+                })()}
               </div>
               <div className="measure">
                 <div className="measure__name">Control RMS</div>

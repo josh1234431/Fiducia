@@ -34,6 +34,14 @@
   --teal-deep: #147a68;
   --teal-shadow: #0d4a40;
 
+  /* -- points on a photograph ----------------------------------------- */
+  /* Drawn over imagery, so the same in both themes, and kept clear of the
+     quality colours: a tie point is not a warning. */
+  --point-control: #3fc4a8;
+  --point-check: #8fb0d6;
+  --point-tie: #c4b0f5;
+  --point-fiducial: #f08a6e;
+
   /* Instruments. Desaturated so teal stays the loudest thing on screen.
      Defined per theme below — a hue legible on a dark panel is not legible
      on white, and signal colours have to stay readable in both. */
