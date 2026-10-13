@@ -50,6 +50,15 @@ const initialIntro = {
   introPage: introSeen && needsAuthor ? INTRO_LAST_PAGE : 0,
 }
 
+/** Whether north-oriented Lo coordinates are shown as the surveyor's Y and X. */
+function readLoAsYX() {
+  try {
+    return localStorage.getItem('fiducia.loAsYX') === '1'
+  } catch {
+    return false
+  }
+}
+
 /** Whether the magnifier appears while measuring points; on unless turned off. */
 function readLoupe() {
   try {
@@ -248,6 +257,7 @@ export const useStore = create((set, get) => ({
   inspectorOpen: true,
   railOpen: readRailOpen(),   // the step menu on the left; remembered per machine
   loupe: readLoupe(),         // magnifier while measuring points; remembered per machine
+  loAsYX: readLoAsYX(),       // north-oriented Lo zones shown as Y/X; remembered per machine
   pendingPoint: null,         // { imageId, col, row }: a clicked point not yet accepted
   stereoPair: null,           // { leftId, rightId }: the pair shown side by side in Stereo DEM
   lidarCloud: null,           // path of the point cloud open in the LiDAR step
@@ -745,6 +755,10 @@ export const useStore = create((set, get) => ({
     const request = { imageId, col, row, scale, token: Date.now() + Math.random() }
     set({ viewRequest: request })
     window.fiducia?.windows?.relay({ type: 'goto', ...request })
+  },
+  setLoAsYX: (loAsYX) => {
+    try { localStorage.setItem('fiducia.loAsYX', loAsYX ? '1' : '0') } catch { /* optional */ }
+    set({ loAsYX })
   },
   setLoupe: (loupe) => {
     try { localStorage.setItem('fiducia.loupe', loupe ? '1' : '0') } catch { /* optional */ }

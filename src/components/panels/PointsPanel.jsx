@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore, selectActiveImage } from '../../state/store'
 import { api } from '../../lib/api'
-import { axisLabels } from '../../lib/axes'
+import { axisLabels, isLoEastingNorthing } from '../../lib/axes'
 import InfoTip from '../InfoTip'
 import { accuracyTone, fitRule, fitToneM, fitTonePx } from '../../lib/quality'
 
@@ -77,7 +77,11 @@ export default function PointsPanel() {
     return () => { current = false }
   }, [crsId])
 
-  const axes = axisLabels(crs)
+  const loAsYX = useStore((s) => s.loAsYX)
+  const setLoAsYX = useStore((s) => s.setLoAsYX)
+  const axes = axisLabels(crs, { loAsYX })
+  // Shown and typed in the axes' own sense; stored as the projection's.
+  const shown = (value) => (value === '' || value == null ? value : Number(value) * axes.sign)
 
   // Live residuals for the photo on the canvas. Recomputed whenever control
   // on it changes; nothing is saved until the model is computed properly.
@@ -228,8 +232,8 @@ export default function PointsPanel() {
           id: existing?.id || null,
           col, row,
           imageId: (picked || image).id,
-          x: existing?.x ?? '',
-          y: existing?.y ?? '',
+          x: existing?.x != null ? shown(existing.x) : '',
+          y: existing?.y != null ? shown(existing.y) : '',
           z: existing?.z ?? '',
           isCheckPoint: existing?.isCheckPoint ?? false,
         })
@@ -238,8 +242,8 @@ export default function PointsPanel() {
   }
 
   async function extractElevation() {
-    const x = numberOf(draft?.x)
-    const y = numberOf(draft?.y)
+    const x = numberOf(draft?.x) == null ? null : numberOf(draft.x) * axes.sign
+    const y = numberOf(draft?.y) == null ? null : numberOf(draft.y) * axes.sign
     if (x == null || y == null) {
       toast(`Enter numeric ${axes.first.toLowerCase()} and ${axes.second.toLowerCase()} values first`, 'warn')
       return
@@ -266,8 +270,8 @@ export default function PointsPanel() {
 
   async function saveDraft() {
     if (!draft) return
-    const x = numberOf(draft.x)
-    const y = numberOf(draft.y)
+    const x = numberOf(draft.x) == null ? null : numberOf(draft.x) * axes.sign
+    const y = numberOf(draft.y) == null ? null : numberOf(draft.y) * axes.sign
     const z = numberOf(draft.z)
     if (x == null || y == null || z == null) {
       toast(`Numeric ${axes.first.toLowerCase()}, ${axes.second.toLowerCase()} and ${axes.elevation.toLowerCase()} values are required`, 'warn')
@@ -424,6 +428,12 @@ export default function PointsPanel() {
               {crs ? crs.label : 'No control projection set'}
               {axes.note ? `. ${axes.note}` : ''}
             </div>
+            {isLoEastingNorthing(crs) && (
+              <label className="field field--row" style={{ marginBottom: 6 }}>
+                <span className="field__label">Show as the surveyor's Y and X</span>
+                <input type="checkbox" checked={loAsYX} onChange={(event) => setLoAsYX(event.target.checked)} />
+              </label>
+            )}
 
             {swapHint && !swapHint.accepted && (
               <div className="readiness" style={{ borderLeftColor: 'var(--signal-warn)',
@@ -646,8 +656,8 @@ export default function PointsPanel() {
                       />
                       <span className="proposal__main">
                         <span className="proposal__coords">
-                          {proposal.x.toFixed(2)} {axes.firstShort},{' '}
-                          {proposal.y.toFixed(2)} {axes.secondShort},{' '}
+                          {shown(proposal.x).toFixed(2)} {axes.firstShort},{' '}
+                          {shown(proposal.y).toFixed(2)} {axes.secondShort},{' '}
                           {proposal.z.toFixed(2)}
                         </span>
                         <span className="proposal__meta">
@@ -895,7 +905,7 @@ function ControlTable({
               : check ? accuracyTone(horizontal, target.horizontalM) : fitToneM(horizontal, project)
             const zTone = dz == null || !check ? '' : accuracyTone(Math.abs(dz), target.verticalM)
             const where = complete
-              ? `${Number(gcp.x).toFixed(2)} ${axes.firstShort}, ${Number(gcp.y).toFixed(2)} ${axes.secondShort}, ${Number(gcp.z).toFixed(2)} m`
+              ? `${(Number(gcp.x) * axes.sign).toFixed(2)} ${axes.firstShort}, ${(Number(gcp.y) * axes.sign).toFixed(2)} ${axes.secondShort}, ${Number(gcp.z).toFixed(2)} m`
               : 'Coordinates incomplete'
             return (
               <tr
