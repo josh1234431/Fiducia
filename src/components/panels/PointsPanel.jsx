@@ -3,6 +3,7 @@ import { useStore, selectActiveImage } from '../../state/store'
 import { api } from '../../lib/api'
 import { axisLabels } from '../../lib/axes'
 import InfoTip from '../InfoTip'
+import { fitRule, fitToneM, fitTonePx } from '../../lib/quality'
 
 /**
  * Ground control and tie points.
@@ -506,9 +507,11 @@ export default function PointsPanel() {
                       {preview?.ready && residualOf[gcp.id] && (
                         <span
                           className={`chip ${preview.worst === gcp.id ? 'chip--bad'
-                            : residualOf[gcp.id].px > 3 ? 'chip--warn' : 'chip--good'}`}
-                          title={residualOf[gcp.id].px != null
-                            ? `${residualOf[gcp.id].px.toFixed(1)} px on this image` : ''}
+                            : ((tone) => (tone ? `chip--${tone}` : ''))(residualOf[gcp.id].px != null
+                              ? fitTonePx(residualOf[gcp.id].px)
+                              : fitToneM(residualOf[gcp.id].groundM, project))}`}
+                          title={(residualOf[gcp.id].px != null
+                            ? `${residualOf[gcp.id].px.toFixed(1)} px on this image. ` : '') + fitRule(project)}
                         >
                           {residualOf[gcp.id].groundM.toFixed(2)} m
                         </span>

@@ -37,11 +37,14 @@ def accuracy_statement(residuals: dict, check_points: set) -> dict:
       RMSE_y) approximation (valid for ratios 0.6 to 1.0); vertical
       1.9600 RMSE_z.
     * Mean error per axis, which exposes a systematic offset that an RMSE
-      alone hides.
+      alone hides. An offset is reported as a bias only when a t-test on the
+      check points says it is real (5%, two-sided): with a handful of points a
+      mean of a metre can be chance.
 
     Only check points count: control points are part of the solution and
-    measure its fit, not its accuracy. Fewer than 20 check points is below
-    what the standards recommend, which is stated.
+    measure its fit, not its accuracy. The ASPRS Positional Accuracy Standards,
+    Edition 2 (2023), ask for at least 30 check points (Edition 1 and the NSSDA
+    asked for 20); fewer is stated, and the figures are then indicative.
     """
     rows = np.array([[np.nan if v is None else v for v in residuals[p]]
                      for p in check_points if p in residuals], dtype=float).reshape(-1, 3)
@@ -74,9 +77,42 @@ def accuracy_statement(residuals: dict, check_points: set) -> dict:
         "maxVertical": float(np.max(np.abs(rows[vertical, 2]))) if vertical.any() else None,
         "nssdaHorizontal95": float(horizontal_95) if horizontal_95 is not None else None,
         "nssdaVertical95": float(1.96 * rmse[2]) if vertical.any() else None,
-        "enoughCheckPoints": bool(len(rows) >= 20),
+        "enoughCheckPoints": bool(len(rows) >= MIN_CHECK_POINTS),
+        "minCheckPoints": MIN_CHECK_POINTS,
+        "bias": _significant_bias(rows),
     })
     return out
+
+
+# ASPRS Positional Accuracy Standards for Digital Geospatial Data, Edition 2
+# (2023): the minimum number of check points for an accuracy assessment.
+MIN_CHECK_POINTS = 30
+
+
+def _significant_bias(rows: np.ndarray) -> list[dict]:
+    """Axes whose mean error is a real offset rather than chance.
+
+    Residuals are surveyed minus adjusted, so a negative mean puts the result
+    above (or east, or north of) the survey. Needs three check points on the
+    axis; tested with Student's t at 5%, two-sided.
+    """
+    from scipy import stats
+
+    found = []
+    for index, axis in enumerate("XYZ"):
+        values = rows[:, index]
+        values = values[np.isfinite(values)]
+        n = len(values)
+        if n < 3:
+            continue
+        spread = float(np.std(values, ddof=1))
+        mean = float(values.mean())
+        if spread == 0:
+            continue
+        t = mean / (spread / math.sqrt(n))
+        if abs(t) > stats.t.ppf(0.975, n - 1):
+            found.append({"axis": axis, "meanM": mean, "t": t, "checkPoints": n})
+    return found
 
 _RULE = "=" * 78
 _THIN = "-" * 78
@@ -145,7 +181,8 @@ def _adjustment_details(model: dict) -> list[str]:
             "  ACCURACY ASSESSMENT (independent check points)",
             _THIN,
             f"  Check points           : {accuracy['checkPoints']}"
-            + ("" if accuracy.get("enoughCheckPoints") else "  (standards recommend at least 20)"),
+            + ("" if accuracy.get("enoughCheckPoints")
+               else f"  (ASPRS 2023 asks for at least {accuracy.get('minCheckPoints', MIN_CHECK_POINTS)}; indicative)"),
             f"  RMSE X / Y / Z         : {_fmt(accuracy.get('rmseX'), '8.3f')} "
             f"{_fmt(accuracy.get('rmseY'), '8.3f')} {_fmt(accuracy.get('rmseZ'), '8.3f')} m",
             f"  Mean X / Y / Z         : {_fmt(accuracy.get('meanX'), '8.3f')} "
@@ -154,8 +191,11 @@ def _adjustment_details(model: dict) -> list[str]:
             f"  RMSE vertical          : {_fmt(accuracy.get('rmseVertical'), '8.3f')} m   (ASPRS 2023)",
             f"  Horizontal at 95%      : {_fmt(accuracy.get('nssdaHorizontal95'), '8.3f')} m   (NSSDA)",
             f"  Vertical at 95%        : {_fmt(accuracy.get('nssdaVertical95'), '8.3f')} m   (NSSDA)",
-            "",
         ]
+        for bias in accuracy.get("bias") or []:
+            lines.append(f"  Systematic offset {bias['axis']}    : {bias['meanM']:8.3f} m mean, "
+                         f"significant (t = {bias['t']:.1f}, {bias['checkPoints']} points)")
+        lines.append("")
     return lines
 
 

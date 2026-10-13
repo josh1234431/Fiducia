@@ -506,6 +506,8 @@ td:first-child { color: var(--ink); font-weight: 600; }
           <tr><td>LiDAR point clouds</td><td>Airborne or drone LiDAR in LAS or LAZ: noise, ground, height above ground and classes from labels; see <a href="#step-lidar">LiDAR</a></td></tr>
         </tbody>
       </table></div>
+      <h3>Accuracy target</h3>
+      <p>The accuracy the job has to reach, as horizontal and vertical RMSE on the check points. The Model step shows its accuracy in green when it meets the target and amber when it does not; left empty, accuracy is shown without colour. Not shown for LiDAR projects.</p>
       <h3>Projection</h3>
       <ul>
         <li><strong>Output projection</strong> is the coordinate system of every product. Pick from the list or type an EPSG code. Fiducia shows the EPSG code, datum and units underneath, and writes the full definition into every output, so GIS software places it correctly even for systems without an official code.</li>
@@ -690,7 +692,8 @@ td:first-child { color: var(--ink); font-weight: 600; }
       <ul>
         <li><strong>Sigma-0</strong>: the variance factor. Near 1 means the stated precisions were right; well above 1 means the data is worse than you said (or something is wrong).</li>
         <li><strong>Image RMS</strong> in µm, <strong>Control RMS</strong> and <strong>Check RMS</strong> in metres.</li>
-        <li><strong>Accuracy</strong> (when there are check points): RMSE in X, Y and Z, the mean error per axis (a mean far from zero is a systematic offset), RMSE horizontal and vertical as in the ASPRS Positional Accuracy Standards (2023), and 95% confidence as in the NSSDA (1.7308 × RMSE<sub>r</sub>, 1.96 × RMSE<sub>z</sub>). The standards recommend at least 20 check points.</li>
+        <li><strong>Accuracy</strong> (when there are check points): RMSE in X, Y and Z, the mean error per axis (a mean far from zero is a systematic offset), RMSE horizontal and vertical as in the ASPRS Positional Accuracy Standards (2023), and 95% confidence as in the NSSDA (1.7308 × RMSE<sub>r</sub>, 1.96 × RMSE<sub>z</sub>). The ASPRS standards (Edition 2, 2023) ask for at least 30 check points; with fewer, the figures are marked as indicative. A mean error that a t-test shows is more than chance is called out as a systematic offset, with its likely causes.</li>
+        <li><strong>Colours.</strong> Fit and accuracy are judged separately. Fit (residuals on the photos, control residuals and control RMS) is amber above 3 pixels, measured on the photo or, on the ground, through the block's ground pixel; the Model step says what that is in metres. Accuracy (from check points) is coloured only against the <em>Accuracy target</em> you set on the <a href="#step-project">Project</a> step, and shown without colour otherwise.</li>
         <li><strong>Self-calibration</strong>: each estimated parameter with its standard deviation, marked <em>significant</em> only if it is larger than three of them.</li>
         <li><strong>Precision</strong>: one standard deviation of each photo's position (± XY, ± Z), attitude (± angle, in arc seconds) and the ground uncertainty at its corners, which the orthophoto inherits. Corners over 5 px are highlighted and point to too little or badly spread control.</li>
         <li><strong>Probable blunders</strong>: points failing data snooping, worst first, with their standardised residual and a plain explanation. For a control point, <strong>Exclude and re-solve</strong> turns it into a check point and solves again.</li>
@@ -978,7 +981,7 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
         <li>Accuracy at 95% confidence as in the <strong>NSSDA</strong>: 1.7308 × RMSE<sub>r</sub> horizontally and 1.96 × RMSE<sub>z</sub> vertically.</li>
         <li>The mean error per axis, so a systematic offset can't hide inside an RMSE.</li>
         <li>A check point measured on only one photo checks position at its surveyed height, not height. Fiducia says how many are like that.</li>
-        <li>With fewer than 20 check points the figures are marked as indicative, as the standards recommend.</li>
+        <li>With fewer than 30 check points the figures are marked as indicative, as the ASPRS standards (Edition 2, 2023) ask.</li>
       </ul>
       <p>
         Every precision Fiducia reports is a standard deviation from the adjustment's covariance, scaled by

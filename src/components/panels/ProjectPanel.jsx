@@ -109,6 +109,36 @@ export default function ProjectPanel() {
         ))}
       </section>
 
+      {workflow.id !== 'lidar' && (
+        <section className="section">
+          <div className="section__head">
+            <span className="section__title">Accuracy target</span>
+            <span className="section__rule" />
+            <InfoTip>
+              The accuracy this job has to reach, as RMSE on the check points. The Model
+              step shows its accuracy in green when it meets these and amber when it does
+              not. Left empty, accuracy is shown without colour: whether an error is good
+              depends on what the product is for.
+            </InfoTip>
+          </div>
+          <div className="grid-2">
+            {[['horizontalM', 'Horizontal RMSE, m'], ['verticalM', 'Vertical RMSE, m']].map(([key, label]) => (
+              <div className="field" key={key}>
+                <label className="field__label">{label}</label>
+                <input
+                  type="number" min="0" step="0.01" placeholder="none"
+                  value={project.accuracyTarget?.[key] ?? ''}
+                  onChange={(event) => {
+                    const value = event.target.value === '' ? null : Number(event.target.value)
+                    patchProject({ accuracyTarget: { ...(project.accuracyTarget || {}), [key]: value } })
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="section">
         <div className="section__head">
           <span className="section__title">Projection</span>

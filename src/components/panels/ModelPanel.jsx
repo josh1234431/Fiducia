@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../../state/store'
 import { api } from '../../lib/api'
 import InfoTip from '../InfoTip'
+import { accuracyTone, fitRule, fitToneM } from '../../lib/quality'
 
 /**
  * Bundle adjustment, plus the diagnostics that make a failed one fixable.
@@ -160,7 +161,7 @@ export default function ModelPanel() {
                     ? model.rmsControlM : null
                   return (
                     <div className={`measure__value ${
-                      rms == null ? '' : rms < 2 ? 'measure__value--good' : 'measure__value--warn'}`}>
+                      fitToneM(rms, project) ? `measure__value--${fitToneM(rms, project)}` : ''}`}>
                       {rms != null ? `${rms.toFixed(2)}m` : '—'}
                     </div>
                   )
@@ -168,12 +169,14 @@ export default function ModelPanel() {
               </div>
               <div className="measure">
                 <div className="measure__name">Check RMS</div>
-                <div className={`measure__value ${
-                  model.rmsCheckM == null || model.rmsCheckM === 0 ? ''
-                    : model.rmsCheckM < 2 ? 'measure__value--good' : 'measure__value--warn'}`}>
+                <div className="measure__value">
                   {model.rmsCheckM ? `${model.rmsCheckM.toFixed(2)}m` : '—'}
                 </div>
               </div>
+            </div>
+            <div className="field__hint" style={{ marginTop: 6 }}>
+              Control RMS shows the fit. {fitRule(project)} Check RMS is the accuracy,
+              judged under Accuracy against your target.
             </div>
 
             <div className="field__hint" style={{ marginTop: 6 }}>
@@ -199,7 +202,9 @@ export default function ModelPanel() {
             })()}
           </section>
 
-          {model.accuracy?.checkPoints > 0 && <AccuracySection accuracy={model.accuracy} />}
+          {model.accuracy?.checkPoints > 0 && (
+            <AccuracySection accuracy={model.accuracy} target={project?.accuracyTarget || {}} />
+          )}
 
           {model.selfCalibration?.values && (
             <SelfCalibrationSection calibration={model.selfCalibration} />
@@ -534,7 +539,12 @@ function metres(value, digits = 3) {
 }
 
 /** Positional accuracy from the check points, as the standards state it. */
-function AccuracySection({ accuracy }) {
+function AccuracySection({ accuracy, target }) {
+  const tone = (value, goal) => {
+    const t = accuracyTone(value, goal)
+    return t ? `measure__value--${t}` : ''
+  }
+  const hasTarget = target.horizontalM > 0 || target.verticalM > 0
   return (
     <section className="section">
       <div className="section__head">
@@ -571,11 +581,17 @@ function AccuracySection({ accuracy }) {
       <div className="measures" style={{ marginTop: 'var(--step-2)' }}>
         <div className="measure">
           <div className="measure__name">RMSE horizontal</div>
-          <div className="measure__value">{metres(accuracy.rmseHorizontal, 2)}m</div>
+          <div className={`measure__value ${tone(accuracy.rmseHorizontal, target.horizontalM)}`}>
+            {metres(accuracy.rmseHorizontal, 2)}m
+          </div>
+          {target.horizontalM > 0 && <div className="field__hint">target {target.horizontalM} m</div>}
         </div>
         <div className="measure">
           <div className="measure__name">RMSE vertical</div>
-          <div className="measure__value">{metres(accuracy.rmseVertical, 2)}m</div>
+          <div className={`measure__value ${tone(accuracy.rmseVertical, target.verticalM)}`}>
+            {metres(accuracy.rmseVertical, 2)}m
+          </div>
+          {target.verticalM > 0 && <div className="field__hint">target {target.verticalM} m</div>}
         </div>
         <div className="measure">
           <div className="measure__name">95% horizontal</div>
@@ -593,9 +609,33 @@ function AccuracySection({ accuracy }) {
           Measure them on a second photo to check height too.
         </div>
       )}
+      {(accuracy.bias || []).map((bias) => (
+        <div key={bias.axis} className="readiness" style={{ marginTop: 'var(--step-2)', borderLeftColor: 'var(--signal-warn)' }}>
+          <div className="readiness__item readiness__item--warning">
+            <span className="dot" />
+            <span>
+              {bias.axis === 'Z'
+                ? `Heights come out ${Math.abs(bias.meanM).toFixed(2)} m ${bias.meanM < 0 ? 'high' : 'low'} on average, `
+                  + 'more than chance explains. A consistent offset like this usually means the '
+                  + 'control and the result are on different vertical datums or geoids, or the '
+                  + 'reference elevation model is offset. Check those before the control itself.'
+                : `Positions are offset ${Math.abs(bias.meanM).toFixed(2)} m `
+                  + `${bias.axis === 'X' ? (bias.meanM < 0 ? 'east' : 'west') : (bias.meanM < 0 ? 'north' : 'south')} `
+                  + 'on average, more than chance explains. Check that the control and the output '
+                  + 'are in the same coordinate system and datum.'}
+            </span>
+          </div>
+        </div>
+      ))}
+      {!hasTarget && (
+        <div className="field__hint" style={{ marginTop: 6 }}>
+          Set an accuracy target on the Project step to judge these against your job.
+        </div>
+      )}
       {!accuracy.enoughCheckPoints && (
         <div className="field__hint" style={{ marginTop: 6 }}>
-          The standards recommend at least 20 check points; with {accuracy.checkPoints} these
+          The ASPRS Positional Accuracy Standards (Edition 2, 2023) ask for at least
+          {' '}{accuracy.minCheckPoints || 30} check points; with {accuracy.checkPoints} these
           figures are indicative.
         </div>
       )}

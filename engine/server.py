@@ -2393,6 +2393,31 @@ def model_readiness() -> dict:
 CORNER_WARN_PX = 5.0
 
 
+def _ground_pixel(camera: CameraModel, images_by_id: dict, exterior: dict, ground_z: float) -> dict:
+    """The block's typical pixel, on the photo and on the ground.
+
+    Residuals are judged in pixels -- a careful measurement is good to about
+    one -- so a residual in metres needs the ground pixel to be judged the same
+    way. The median over the photos, from each photo's own scan pixel and
+    height above the mean ground.
+    """
+    ground, image = [], []
+    for image_id, eo in exterior.items():
+        try:
+            record = images_by_id.get(image_id, {})
+            fit = FiducialFit.from_dict(record["fiducialFit"]) if record.get("fiducialFit") else None
+            pixel = camera.pixel_scale_mm(fit)
+            height = float(eo[2]) - ground_z
+        except Exception:  # noqa: BLE001
+            continue
+        if pixel and camera.focal_mm and height > 0:
+            image.append(pixel)
+            ground.append(pixel * height / camera.focal_mm)
+    if not ground:
+        return {}
+    return {"groundPixelM": float(np.median(ground)), "pixelMm": float(np.median(image))}
+
+
 def _precision_summary(camera: CameraModel, image: dict, eo, covariance,
                        ground_z: float) -> Optional[dict]:
     """Standard deviations and corner uncertainty of one photo's orientation."""
@@ -2746,6 +2771,8 @@ def model_compute(payload: dict = Body(default={})) -> dict:
                     "residuals": residuals,
                     "solvedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "exterior": {image_id: result.eo.tolist()},
+                    **_ground_pixel(camera, {image_id: image_record}, {image_id: result.eo},
+                                    float(np.mean([control[o.point_id][2] for o in usable]))),
                 }
             else:
                 progress(0.3, f"Bundle adjustment — {len(image_ids)} photos, "
@@ -2872,6 +2899,7 @@ def model_compute(payload: dict = Body(default={})) -> dict:
                 }
                 summary["accuracy"] = reports.accuracy_statement(
                     result.control_residuals_m, check_points)
+                summary.update(_ground_pixel(camera, images_by_id, result.eo, mean_z))
                 notes = []
                 if result.rejected_ties:
                     test = "data-snooping test" if result.snooping else "outlier screen"
