@@ -213,6 +213,8 @@ export const api = {
     // Residuals for one photo from its own control; saves nothing.
     preview: (imageId) => request('POST', '/model/preview', { imageId }),
     compute: (payload = {}) => request('POST', '/model/compute', payload),
+    overview: () => request('GET', '/model/overview'),
+    overview: () => request('GET', '/model/overview'),
     setCheckPoint: (pointId, isCheckPoint) =>
       request('POST', '/model/checkpoint', { pointId, isCheckPoint }),
     residuals: (units = 'ground', show = 'all') =>

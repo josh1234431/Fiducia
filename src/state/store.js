@@ -252,6 +252,7 @@ export const useStore = create((set, get) => ({
   theme: localStorage.getItem('fiducia.theme') || 'dark',
   activeStep: 'project',
   activeImageId: null,
+  blockView: true,            // the Model step shows the whole block, not one photo
   referenceLayer: null,       // path of a geocoded reference image
   viewport: { ...initialViewport },
   inspectorOpen: true,
@@ -679,6 +680,7 @@ export const useStore = create((set, get) => ({
     if (project) api.project.patch({ ui: { ...project.ui, activeStep } }).catch(() => {})
   },
 
+  setBlockView: (blockView) => set({ blockView }),
   setActiveImage: (activeImageId) =>
     set({ activeImageId, viewport: { ...initialViewport } }),
 

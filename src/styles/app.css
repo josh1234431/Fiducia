@@ -1097,6 +1097,61 @@
   flex: none;
 }
 .viewer__legend-mark .marker__cross { width: 14px; height: 14px; }
+
+/* -- block overview ------------------------------------------------------ */
+.overview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.overview__map {
+  width: 100%;
+  height: 100%;
+  padding: 24px 24px calc(var(--datastrip-height) + 56px);
+}
+.overview__footprint {
+  fill: rgba(237, 240, 242, 0.07);
+  stroke: rgba(237, 240, 242, 0.42);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  transition: fill var(--quick) var(--ease-swift);
+}
+.overview__footprint--hover {
+  fill: rgba(237, 240, 242, 0.16);
+  stroke: var(--ink);
+}
+.overview__name {
+  fill: var(--ink-soft);
+  font-family: var(--font-data);
+  font-weight: 600;
+  pointer-events: none;
+}
+.overview__tie {
+  fill: var(--point-tie);
+  opacity: 0.55;
+}
+.overview__point path,
+.overview__point circle {
+  stroke: currentColor;
+}
+.overview__point text {
+  fill: currentColor;
+  font-family: var(--font-data);
+  font-weight: 700;
+}
+.overview__swatch {
+  width: 14px;
+  height: 10px;
+  border: 1px solid rgba(237, 240, 242, 0.42);
+  background: rgba(237, 240, 242, 0.07);
+}
+.overview__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--point-tie);
+}
 .viewer__legend-mark .marker__ring { width: 8px; height: 8px; margin: -4px 0 0 -4px; }
 .marker--selected {
   color: var(--brand-white);

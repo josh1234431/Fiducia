@@ -678,6 +678,15 @@ export default function ImageViewer({ imageId: fixedId, onImageChange, popout = 
           )}
         </div>
 
+        {activeStep === 'model' && project?.model?.exterior && (
+          <div className="toolgroup">
+            <button className="toolgroup__btn" onClick={() => useStore.getState().setBlockView(true)}
+                    title="The whole block from above: footprints, control and tie points">
+              Block overview
+            </button>
+          </div>
+        )}
+
         {canPopOut && (
           <div className="toolgroup">
             <button

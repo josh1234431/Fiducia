@@ -2675,6 +2675,67 @@ def model_preview(payload: dict = Body(default={})) -> dict:
     })
 
 
+@app.get("/model/overview")
+def model_overview() -> dict:
+    """The solved block from above: each photo's footprint, the control and
+    check points with their errors, and a sample of the tie points.
+
+    What a bundle adjustment is judged by -- overlap, and whether the control
+    surrounds the block -- is visible here at once and nowhere on a single
+    photo. Footprints are the frame edges intersected with a plane at the
+    mean ground height.
+    """
+    project = require_project()
+    state = project.state
+    model = state.get("model")
+    if not model or not model.get("exterior"):
+        raise HTTPException(404, "The block is not solved yet")
+    camera = CameraModel.from_dict(state.get("camera") or {})
+    gcps = state.get("gcps", [])
+    heights = [float(g["z"]) for g in gcps if g.get("z") is not None]
+    objects = model.get("objectPoints") or {}
+    if heights:
+        ground_z = float(np.mean(heights))
+    elif objects:
+        ground_z = float(np.median([p[2] for p in objects.values()]))
+    else:
+        ground_z = 0.0
+
+    footprints = []
+    for image in state.get("images", []):
+        eo = model["exterior"].get(image["id"])
+        width, height = float(image.get("width") or 0), float(image.get("height") or 0)
+        if not eo or not width or not height:
+            continue
+        steps = np.linspace(0.0, 1.0, 6, endpoint=False)
+        edge = ([(width * t, 0.0) for t in steps] + [(width, height * t) for t in steps]
+                + [(width * (1 - t), height) for t in steps] + [(0.0, height * (1 - t)) for t in steps])
+        fit = FiducialFit.from_dict(image["fiducialFit"]) if image.get("fiducialFit") else None
+        try:
+            ground = ortho._pixels_to_ground(np.array(edge), camera, fit, np.asarray(eo, float), ground_z)
+        except Exception:  # noqa: BLE001 -- a photo that cannot be drawn is left out
+            continue
+        if not np.isfinite(ground).all():
+            continue
+        footprints.append({"id": image["id"], "name": image.get("name", image["id"]),
+                           "polygon": ground[:, :2].round(2).tolist(),
+                           "centre": [round(float(eo[0]), 2), round(float(eo[1]), 2)]})
+
+    residuals = model.get("controlResidualsM") or {}
+    points = []
+    for g in gcps:
+        if g.get("x") is None or g.get("y") is None:
+            continue
+        r = residuals.get(g["id"])
+        points.append({"id": g["id"], "x": float(g["x"]), "y": float(g["y"]),
+                       "check": bool(g.get("isCheckPoint")),
+                       "errorM": float(np.hypot(r[0], r[1])) if r and r[0] is not None else None})
+    ties = [[round(float(p[0]), 2), round(float(p[1]), 2)] for p in objects.values()]
+    if len(ties) > 3000:
+        ties = ties[:: max(1, len(ties) // 3000)]
+    return clean({"footprints": footprints, "points": points, "ties": ties, "groundZ": ground_z})
+
+
 @app.post("/model/compute")
 def model_compute(payload: dict = Body(default={})) -> dict:
     """Solve the block. Resection for a single photo, bundle for several."""
