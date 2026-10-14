@@ -33,6 +33,8 @@ export default function ScenePanel() {
   const meshing = running('scene_mesh')
   const [detail, setDetail] = useState('medium')
   const [meshDetail, setMeshDetail] = useState('medium')
+  const [splatPx, setSplatPx] = useState('3200')
+  const exportingSplat = running('scene_colmap')
   const [distance, setDistance] = useState('')
 
   const transform = scene?.transform
@@ -78,6 +80,18 @@ export default function ScenePanel() {
     toast(which === 'mesh'
       ? `Saved ${result.triangles.toLocaleString()} triangles to ${result.path}`
       : `Saved ${result.points.toLocaleString()} points to ${result.path}`, 'good', 9000)
+  }
+
+  async function exportForSplatting() {
+    if (!window.fiducia?.isDesktop) {
+      toast('Models can only be saved in the desktop app', 'warn')
+      return
+    }
+    const folder = await window.fiducia.dialog.openDirectory({ title: 'Choose where to save the splatting folder' })
+    if (!folder) return
+    const result = await call(() => api.scene.exportColmap(folder, splatPx === 'full' ? null : Number(splatPx)),
+      { refresh: false })
+    if (result) toast(`Writing ${result.folder}. Its progress is in the job bar.`, 'info', 9000)
   }
 
   function openInTools() {
@@ -395,6 +409,31 @@ export default function ScenePanel() {
               Save mesh…
             </button>
           )}
+
+          <div className="field" style={{ marginTop: 'var(--step-4)' }}>
+            <label className="field__label">
+              <span>
+                For Gaussian splatting
+                <InfoTip>
+                  Writes the photos, undistorted, with where each was taken and the tie points,
+                  in the layout COLMAP uses. Splatting tools (Postshot, Nerfstudio, Brush, gsplat)
+                  open the folder and train from it directly, without working the cameras out
+                  again. The photo size is the long side the photos are saved at: larger keeps
+                  more detail, and needs a graphics card with more memory to train.
+                </InfoTip>
+              </span>
+            </label>
+            <div className="grid-2">
+              <select value={splatPx} onChange={(event) => setSplatPx(event.target.value)} aria-label="Photo size">
+                <option value="1600">1,600 px photos</option>
+                <option value="3200">3,200 px photos</option>
+                <option value="full">Full size photos</option>
+              </select>
+              <button className="btn btn--block" disabled={!!exportingSplat} onClick={exportForSplatting}>
+                {exportingSplat ? (exportingSplat.message || 'Exporting…') : 'Export folder…'}
+              </button>
+            </div>
+          </div>
         </section>
       )}
     </>

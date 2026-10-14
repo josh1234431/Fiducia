@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1013">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Fiducia Capture</title>
+<meta name="description" content="Take the photos a good 3D model needs: Fiducia Capture checks coverage, overlap, steadiness and light as you go.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 8 48 48'%3E%3Cpath d='M14 44V14h22M14 25.5h10M50 41v9h-9' fill='none' stroke='%23edf0f2' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5.2' fill='%233fc4a8'/%3E%3C/svg%3E">
+<style>
+/*
+ * Fiducia Capture: a camera that says when a set of photos is good enough
+ * for a 3D model, while there is still time to take the missing ones.
+ * One page, no libraries; the photos stay on the phone until shared.
+ */
+:root {
+  --bg: #0e1013; --panel: rgba(23, 27, 31, 0.86); --rule: rgba(237, 240, 242, 0.14);
+  --ink: #edf0f2; --ink-soft: #b6bec4; --ink-faint: #808a91;
+  --accent: #3fc4a8; --warn: #e0b45c; --bad: #e3937b;
+  --font: "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font);
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.screen { position: fixed; inset: 0; display: none; }
+.screen.on { display: block; }
+
+/* -- start ------------------------------------------------------------------ */
+#start { overflow-y: auto; padding: max(28px, env(safe-area-inset-top)) 20px 32px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+.brand svg { width: 26px; height: 26px; }
+h1 { font-size: 30px; line-height: 1.1; letter-spacing: -0.03em; margin: 28px 0 10px; }
+.lede { color: var(--ink-soft); line-height: 1.55; margin: 0 0 22px; font-size: 15px; }
+.modes { display: grid; gap: 10px; margin-bottom: 20px; }
+.mode { text-align: left; background: transparent; border: 1px solid var(--rule); border-radius: 12px;
+  padding: 14px 16px; }
+.mode.on { border-color: var(--accent); background: rgba(63, 196, 168, 0.10); }
+.mode b { display: block; font-size: 16px; margin-bottom: 3px; }
+.mode span { color: var(--ink-soft); font-size: 13.5px; line-height: 1.45; }
+.tips { color: var(--ink-soft); font-size: 14px; line-height: 1.55; padding-left: 18px; margin: 0 0 24px; }
+.tips li { margin-bottom: 6px; }
+.primary { width: 100%; border: 0; border-radius: 12px; padding: 15px; font-weight: 700; font-size: 16px;
+  background: var(--accent); color: #0e1013; }
+.secondary { width: 100%; border: 1px solid var(--rule); border-radius: 12px; padding: 13px; font-weight: 600;
+  background: transparent; margin-top: 10px; }
+.small { color: var(--ink-faint); font-size: 12.5px; line-height: 1.5; margin-top: 18px; }
+.resume { margin-bottom: 14px; }
+
+/* -- camera ----------------------------------------------------------------- */
+#camera { background: #000; }
+video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hud { position: absolute; left: 0; right: 0; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start; }
+.hud--top { top: 0; padding-top: max(10px, env(safe-area-inset-top)); }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 10px 12px;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.ring { width: 112px; height: 112px; flex: none; padding: 6px; }
+.ring svg { width: 100%; height: 100%; display: block; }
+.ring .sector { fill: rgba(237, 240, 242, 0.10); }
+.ring .sector.got { fill: var(--accent); }
+.ring .sector.half { fill: rgba(63, 196, 168, 0.45); }
+.ring .needle { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.ring text { fill: var(--ink); font-size: 15px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+.ring .sub { fill: var(--ink-soft); font-size: 8.5px; font-weight: 600; }
+.status { flex: 1; min-width: 0; }
+.count { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.count small { font-size: 13px; color: var(--ink-soft); font-weight: 600; }
+.bars { display: flex; gap: 4px; margin-top: 8px; }
+.bars i { flex: 1; height: 5px; border-radius: 3px; background: rgba(237, 240, 242, 0.14); }
+.bars i.got { background: var(--accent); }
+.bars-label { display: flex; justify-content: space-between; color: var(--ink-faint); font-size: 10.5px; margin-top: 3px; }
+.message { position: absolute; left: 12px; right: 12px; bottom: calc(126px + env(safe-area-inset-bottom));
+  text-align: center; pointer-events: none; }
+.message span { display: inline-block; background: var(--panel); border: 1px solid var(--rule); border-radius: 999px;
+  padding: 9px 15px; font-size: 14.5px; font-weight: 600; line-height: 1.35; backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px); }
+.message.good span { border-color: var(--accent); }
+.message.warn span { border-color: var(--warn); color: #ffe2a8; }
+.message.bad span { border-color: var(--bad); color: #ffc9b8; }
+.level { position: absolute; left: 50%; top: 50%; width: 120px; height: 2px; margin-left: -60px;
+  background: rgba(237, 240, 242, 0.55); border-radius: 2px; transition: background 0.2s; }
+.level.flat { background: var(--accent); }
+.controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 24px max(18px, env(safe-area-inset-bottom));
+  display: flex; align-items: center; justify-content: space-between;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent); }
+.thumb { width: 54px; height: 54px; border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.7);
+  background: #222 center / cover; padding: 0; position: relative; }
+.thumb b { position: absolute; right: -6px; top: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+  background: var(--warn); color: #0e1013; font-size: 11px; line-height: 20px; display: none; }
+.thumb.flagged b { display: block; }
+.shutter { width: 76px; height: 76px; border-radius: 50%; border: 5px solid #fff; background: rgba(255, 255, 255, 0.18);
+  padding: 0; transition: transform 0.08s; }
+.shutter:active { transform: scale(0.92); }
+.shutter.busy { background: rgba(255, 255, 255, 0.6); }
+.done { border: 1px solid rgba(255, 255, 255, 0.7); background: rgba(0, 0, 0, 0.35); border-radius: 12px;
+  padding: 12px 14px; font-weight: 700; min-width: 54px; }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.flash.on { opacity: 0.55; transition: none; }
+
+/* -- review ----------------------------------------------------------------- */
+#review { overflow-y: auto; padding: max(20px, env(safe-area-inset-top)) 16px 28px; }
+#review h2 { font-size: 24px; margin: 12px 0 6px; letter-spacing: -0.02em; }
+.verdict { border-radius: 12px; padding: 12px 14px; margin: 12px 0 16px; line-height: 1.5; font-size: 14.5px;
+  border: 1px solid var(--rule); }
+.verdict.good { border-color: var(--accent); background: rgba(63, 196, 168, 0.08); }
+.verdict.warn { border-color: var(--warn); background: rgba(224, 180, 92, 0.08); }
+.verdict ul { margin: 6px 0 0; padding-left: 18px; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0 18px; }
+.grid div { aspect-ratio: 1; border-radius: 8px; background: #222 center / cover; position: relative; }
+.grid div.flagged::after { content: "!"; position: absolute; right: 4px; top: 4px; width: 18px; height: 18px;
+  border-radius: 9px; background: var(--warn); color: #0e1013; font-weight: 800; font-size: 12px; text-align: center; line-height: 18px; }
+.grid button { position: absolute; left: 4px; bottom: 4px; border: 0; border-radius: 6px; padding: 2px 6px;
+  font-size: 11px; background: rgba(0, 0, 0, 0.6); }
+.error { color: var(--bad); line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ start -->
+<section class="screen on" id="start">
+  <div class="brand">
+    <svg viewBox="10 10 44 44" aria-hidden="true"><path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="32" cy="32" r="5" fill="#3fc4a8"/></svg>
+    Fiducia Capture
+  </div>
+  <h1>Photos for a 3D model, without the guesswork</h1>
+  <p class="lede">Point, step and shoot. Capture keeps track of how far round you have got, and says straight away
+    if a photo is blurred, too dark, too far from the last one, or taken from the same spot.</p>
+
+  <div class="modes" role="radiogroup" aria-label="What are you photographing?">
+    <button class="mode on" data-mode="around" role="radio" aria-checked="true">
+      <b>Around something</b>
+      <span>An object, a statue, a car, a building: walk all the way round it, facing it.</span>
+    </button>
+    <button class="mode" data-mode="room" role="radio" aria-checked="false">
+      <b>Inside a room</b>
+      <span>Walk round the edge of the room facing across it, so every wall is seen from several places.</span>
+    </button>
+  </div>
+
+  <ul class="tips" id="tips"></ul>
+  <button class="secondary resume" id="resume" hidden></button>
+  <button class="primary" id="go">Start</button>
+  <p class="small">The photos stay on this phone until you share them. Capture needs the camera, and asks for the
+    motion sensors, which it uses to tell which way you are facing and whether you stepped between photos.</p>
+  <p class="error" id="start-error"></p>
+</section>
+
+<!-- ============================================================ camera -->
+<section class="screen" id="camera">
+  <video id="video" playsinline muted autoplay></video>
+  <div class="level" id="level" aria-hidden="true"></div>
+  <div class="flash" id="flash"></div>
+
+  <div class="hud hud--top">
+    <div class="card ring" aria-label="Coverage">
+      <svg viewBox="-60 -60 120 120" id="ring"></svg>
+    </div>
+    <div class="card status">
+      <div class="count" id="count">0 <small>photos</small></div>
+      <div class="bars" id="bars"></div>
+      <div class="bars-label"><span id="bars-left"></span><span id="bars-right"></span></div>
+    </div>
+  </div>
+
+  <div class="message" id="message"><span id="message-text">Face the subject and take the first photo.</span></div>
+
+  <div class="controls">
+    <button class="thumb" id="thumb" aria-label="Review the photos"><b id="flags">0</b></button>
+    <button class="shutter" id="shutter" aria-label="Take a photo"></button>
+    <button class="done" id="finish">Done</button>
+  </div>
+</section>
+
+<!-- ============================================================ review -->
+<section class="screen" id="review">
+  <div class="brand">
+    <svg viewBox="10 10 44 44" aria-hidden="true"><path d="M14 44V14h22M14 25.5h10M50 41v9h-9" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="32" cy="32" r="5" fill="#3fc4a8"/></svg>
+    Fiducia Capture
+  </div>
+  <h2 id="review-title"></h2>
+  <div class="verdict" id="verdict"></div>
+  <button class="primary" id="share">Share the photos</button>
+  <button class="secondary" id="zip">Download as a zip</button>
+  <button class="secondary" id="back">Take more</button>
+  <div class="grid" id="grid"></div>
+  <button class="secondary" id="clear">Start a new set</button>
+  <p class="small">In Fiducia, create a project with <b>Photos without GPS</b> and add these photos on the Photos step.</p>
+</section>
+
+<script>
+(function () {
+'use strict';
+
+// -- what a good set needs ---------------------------------------------------------
+var MODES = {
+  around: {
+    sectors: 24,          // 15 degrees each: one step round a subject at walking distance
+    perSector: 1,
+    tips: [
+      'Stand two to four steps back, so the whole subject, or most of it, fills the frame.',
+      'Take a photo, take one step to the side, keeping the subject in view, and take the next. Do not turn on the spot.',
+      'Go all the way round, then go round again higher or lower if you can, for the top and the underside.',
+      'Somewhere in view, put something you can measure (a tape, a door) to set the scale later.'
+    ]
+  },
+  room: {
+    sectors: 16,          // facing directions, each seen from two places
+    perSector: 2,
+    tips: [
+      'Walk round the edge of the room, facing across it, not at the wall in front of you.',
+      'Step to the side between photos, about the width of your shoulders. Do not turn on the spot.',
+      'Every wall should be in photos taken from at least two places. Turn on the lights.',
+      'Plain white walls are hard: include edges, furniture and corners in each photo.'
+    ]
+  }
+};
+var MIN_PHOTOS = 20, GOOD_PHOTOS = 40;
+
+var demo = /[?&]demo\b/.test(location.search);
+var mode = 'around';
+var stream = null, track = null, imageCapture = null;
+var heading = null, pitch = 0, roll = 0, rotationRate = 0;
+var steps = 0, lastPeak = 0, accelBase = 9.81;
+var shots = [];             // { id, heading, pitch, sharp, light, overlap, steps, flags[], url }
+var lastSig = null, busy = false;
+var db = null;
+
+var $ = function (id) { return document.getElementById(id); };
+function show(id) {
+  Array.prototype.forEach.call(document.querySelectorAll('.screen'), function (s) { s.classList.toggle('on', s.id === id); });
+}
+
+// -- the start screen ---------------------------------------------------------------
+function renderTips() {
+  $('tips').innerHTML = MODES[mode].tips.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+}
+Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (b) {
+  b.addEventListener('click', function () {
+    mode = b.dataset.mode;
+    Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (o) {
+      o.classList.toggle('on', o === b); o.setAttribute('aria-checked', o === b ? 'true' : 'false');
+    });
+    renderTips();
+  });
+});
+renderTips();
+
+// -- storage: photos are kept on the phone until shared -----------------------------
+function openDb() {
+  return new Promise(function (resolve) {
+    try {
+      var req = indexedDB.open('fiducia-capture', 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore('photos', { keyPath: 'id' }); };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { resolve(null); };
+    } catch (e) { resolve(null); }
+  });
+}
+function store(op, value) {
+  return new Promise(function (resolve) {
+    if (!db) { resolve(op === 'all' ? [] : null); return; }
+    var tx = db.transaction('photos', op === 'all' || op === 'get' ? 'readonly' : 'readwrite');
+    var s = tx.objectStore('photos');
+    var req = op === 'all' ? s.getAll() : op === 'put' ? s.put(value) : op === 'delete' ? s.delete(value)
+      : op === 'clear' ? s.clear() : s.get(value);
+    req.onsuccess = function () { resolve(req.result); };
+    req.onerror = function () { resolve(null); };
+  });
+}
+
+openDb().then(function (d) {
+  db = d;
+  return store('all');
+}).then(function (saved) {
+  if (saved && saved.length) {
+    saved.sort(function (a, b) { return a.id - b.id; });
+    shots = saved.map(function (s) {
+      return Object.assign({}, s.meta, { id: s.id, url: URL.createObjectURL(s.blob) });
+    });
+    mode = (saved[0].meta && saved[0].meta.mode) || mode;
+    var b = $('resume');
+    b.hidden = false;
+    b.textContent = 'Carry on with the ' + shots.length + ' photos already taken';
+  }
+});
+
+// -- sensors ------------------------------------------------------------------------
+function onOrientation(e) {
+  // Compass heading where the phone gives one (iOS names it), else alpha.
+  var h = typeof e.webkitCompassHeading === 'number' ? e.webkitCompassHeading
+    : (e.alpha != null ? (360 - e.alpha) % 360 : null);
+  if (h != null) heading = h;
+  if (e.beta != null) pitch = e.beta - 90;      // 0 with the phone upright, negative looking down
+  if (e.gamma != null) roll = e.gamma;
+}
+function onMotion(e) {
+  var r = e.rotationRate;
+  if (r) rotationRate = Math.max(Math.abs(r.alpha || 0), Math.abs(r.beta || 0), Math.abs(r.gamma || 0));
+  var a = e.accelerationIncludingGravity;
+  if (!a || a.x == null) return;
+  // A step is a jolt well above the slow average, at most about twice a second.
+  var m = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+  accelBase = accelBase * 0.95 + m * 0.05;
+  var now = Date.now();
+  if (m - accelBase > 1.6 && now - lastPeak > 380) { steps += 1; lastPeak = now; }
+}
+
+async function askSensors() {
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      await DeviceOrientationEvent.requestPermission();
+    }
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      await DeviceMotionEvent.requestPermission();
+    }
+  } catch (e) { /* the photos still work without them */ }
+  var absolute = 'ondeviceorientationabsolute' in window;
+  window.addEventListener(absolute ? 'deviceorientationabsolute' : 'deviceorientation', onOrientation);
+  window.addEventListener('devicemotion', onMotion);
+}
+
+// -- the camera ---------------------------------------------------------------------
+async function startCamera() {
+  if (demo) { stream = demoStream(); }
+  else {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 4032 }, height: { ideal: 3024 } }
+    });
+  }
+  track = stream.getVideoTracks()[0];
+  if (!demo && 'ImageCapture' in window) {
+    try { imageCapture = new ImageCapture(track); } catch (e) { imageCapture = null; }
+  }
+  var v = $('video');
+  v.srcObject = stream;
+  await v.play().catch(function () {});
+}
+
+async function go() {
+  $('start-error').textContent = '';
+  try {
+    await askSensors();
+    await startCamera();
+  } catch (e) {
+    $('start-error').textContent = 'The camera could not be opened: ' + (e && e.message || e)
+      + '. Allow camera access for this site, then try again.';
+    return;
+  }
+  show('camera');
+  lastSig = shots.length ? null : null;
+  draw();
+  setMessage(shots.length ? 'Carry on from where you stopped.' : 'Face the subject and take the first photo.', '');
+  tick();
+}
+$('go').addEventListener('click', go);
+$('resume').addEventListener('click', go);
+
+// -- looking at a photo: sharpness, light and a signature for overlap ----------------
+var probe = document.createElement('canvas');
+function analyse(source, w, h) {
+  // A small grey copy: 160 pixels across is plenty to judge.
+  var W = 160, H = Math.max(1, Math.round(160 * h / w));
+  probe.width = W; probe.height = H;
+  var c = probe.getContext('2d', { willReadFrequently: true });
+  c.drawImage(source, 0, 0, W, H);
+  var d = c.getImageData(0, 0, W, H).data;
+  var g = new Float32Array(W * H), sum = 0;
+  for (var i = 0; i < W * H; i++) { g[i] = 0.299 * d[4 * i] + 0.587 * d[4 * i + 1] + 0.114 * d[4 * i + 2]; sum += g[i]; }
+  // Sharpness: how strongly the picture changes from pixel to pixel (Laplacian variance).
+  var lap = 0, n = 0;
+  for (var y = 1; y < H - 1; y++) for (var x = 1; x < W - 1; x++) {
+    var k = y * W + x;
+    var l = 4 * g[k] - g[k - 1] - g[k + 1] - g[k - W] - g[k + W];
+    lap += l * l; n++;
+  }
+  // Column and row profiles of edges: how the picture slides from one photo to the next.
+  var cols = new Float32Array(W), rows = new Float32Array(H);
+  for (y = 1; y < H - 1; y++) for (x = 1; x < W - 1; x++) {
+    k = y * W + x;
+    var e = Math.abs(g[k + 1] - g[k - 1]) + Math.abs(g[k + W] - g[k - W]);
+    cols[x] += e; rows[y] += e;
+  }
+  return { sharp: lap / Math.max(n, 1), light: sum / (W * H), cols: normal(cols), rows: normal(rows) };
+}
+function normal(a) {
+  var m = 0, s = 0, i;
+  for (i = 0; i < a.length; i++) m += a[i];
+  m /= a.length;
+  for (i = 0; i < a.length; i++) { a[i] -= m; s += a[i] * a[i]; }
+  s = Math.sqrt(s / a.length) || 1;
+  for (i = 0; i < a.length; i++) a[i] /= s;
+  return a;
+}
+// The share of the frame two photos have in common, from the best sliding fit of their profiles.
+function overlap(a, b) {
+  function slide(p, q) {
+    var best = -2, bestShift = 0, L = p.length;
+    for (var s = -Math.floor(L * 0.75); s <= Math.floor(L * 0.75); s++) {
+      var acc = 0, n = 0;
+      for (var i = 0; i < L; i++) { var j = i + s; if (j >= 0 && j < L) { acc += p[i] * q[j]; n++; } }
+      if (n < L * 0.25) continue;
+      var r = acc / n;
+      if (r > best) { best = r; bestShift = s; }
+    }
+    return { shift: Math.abs(bestShift) / L, match: best };
+  }
+  var x = slide(a.cols, b.cols), y = slide(a.rows, b.rows);
+  return { shared: Math.max(0, (1 - x.shift) * (1 - y.shift)), match: Math.min(x.match, y.match) };
+}
+
+// -- taking a photo ----------------------------------------------------------------
+async function grab() {
+  var v = $('video');
+  if (demoCanvas) {
+    demoDraw();
+    var dc = document.createElement('canvas');
+    dc.width = demoCanvas.width; dc.height = demoCanvas.height;
+    dc.getContext('2d').drawImage(demoCanvas, 0, 0);
+    var db = await new Promise(function (r) { dc.toBlob(r, 'image/jpeg', 0.92); });
+    return { blob: db, source: dc, w: dc.width, h: dc.height };
+  }
+  if (imageCapture) {
+    try {
+      var blob = await imageCapture.takePhoto();
+      var bmp = await createImageBitmap(blob);
+      return { blob: blob, source: bmp, w: bmp.width, h: bmp.height };
+    } catch (e) { /* fall back to the video frame */ }
+  }
+  var w = v.videoWidth || 1280, h = v.videoHeight || 960;
+  var canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(v, 0, 0, w, h);
+  var b = await new Promise(function (r) { canvas.toBlob(r, 'image/jpeg', 0.95); });
+  return { blob: b, source: canvas, w: w, h: h };
+}
+
+function sectorOf(h) {
+  var n = MODES[mode].sectors;
+  // Around something, the photo is taken from the side opposite the way it faces.
+  var position = mode === 'around' ? (h + 180) % 360 : h;
+  return Math.floor(((position % 360) + 360) % 360 / (360 / n)) % n;
+}
+
+async function shoot() {
+  if (busy) return;
+  busy = true;
+  $('shutter').classList.add('busy');
+  var moving = rotationRate;
+  var stepsSince = steps;
+  var f = $('flash'); f.classList.add('on'); setTimeout(function () { f.classList.remove('on'); }, 60);
+  try {
+    var shot = await grab();
+    var look = analyse(shot.source, shot.w, shot.h);
+    var flags = [], hints = [];
+    var previous = shots[shots.length - 1];
+    // Sharpness against the set so far: a blurred photo has much less fine detail than its neighbours.
+    var sharpness = shots.map(function (s) { return s.sharp; }).sort(function (a, b) { return a - b; });
+    var typical = sharpness.length ? sharpness[Math.floor(sharpness.length / 2)] : look.sharp;
+    if (moving > 40 || (sharpness.length >= 3 && look.sharp < 0.45 * typical)) {
+      flags.push('blurred'); hints.push('Blurred: hold still as you press, and take it again.');
+    }
+    if (look.light < 45) { flags.push('dark'); hints.push('Too dark: find more light, or turn the lights on.'); }
+    var shared = null;
+    if (previous && lastSig) {
+      var o = overlap(lastSig, look);
+      shared = o.shared;
+      var turned = heading != null && previous.heading != null ? angle(heading, previous.heading) : null;
+      if (o.match > 0.35 && shared < 0.6) {
+        flags.push('gap'); hints.push('Too big a step: about two thirds of each photo should be in the last one too.');
+      } else if (o.match < 0.2 && turned != null && turned > 25) {
+        flags.push('gap'); hints.push('Too big a step from the last photo: go back and add one between them.');
+      } else if (shared > 0.95 && stepsSince === 0 && (turned == null || turned < 3)) {
+        flags.push('same'); hints.push('Same view as the last photo: take a step to the side first.');
+      } else if (turned != null && turned > 8 && stepsSince === 0 && !demo) {
+        flags.push('spun'); hints.push('Turned on the spot? Step to the side between photos, then turn to face the subject.');
+      }
+    }
+    var record = {
+      mode: mode, heading: heading, pitch: pitch, sharp: look.sharp, light: look.light,
+      shared: shared, steps: stepsSince, flags: flags, at: Date.now()
+    };
+    var id = Date.now();
+    await store('put', { id: id, blob: shot.blob, meta: record });
+    record.id = id;
+    record.url = URL.createObjectURL(shot.blob);
+    shots.push(record);
+    lastSig = look;
+    steps = 0;
+    draw();
+    if (hints.length) setMessage(hints[0], flags[0] === 'blurred' || flags[0] === 'dark' ? 'bad' : 'warn');
+    else setMessage(nextHint(), 'good');
+  } catch (e) {
+    setMessage('The photo could not be taken: ' + (e && e.message || e), 'bad');
+  } finally {
+    busy = false;
+    $('shutter').classList.remove('busy');
+  }
+}
+$('shutter').addEventListener('click', shoot);
+
+function angle(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+
+// -- coverage -----------------------------------------------------------------------
+function coverage() {
+  var m = MODES[mode], counts = new Array(m.sectors).fill(0);
+  shots.forEach(function (s) {
+    if (s.heading != null && s.flags.indexOf('blurred') < 0) counts[sectorOf(s.heading)] += 1;
+  });
+  var full = counts.filter(function (c) { return c >= m.perSector; }).length;
+  return { counts: counts, share: full / m.sectors, known: shots.some(function (s) { return s.heading != null; }) };
+}
+
+function nextHint() {
+  var c = coverage(), n = shots.length;
+  if (!c.known) {
+    if (n < MIN_PHOTOS) return 'Good. Step to the side and take the next one. ' + (MIN_PHOTOS - n) + ' more at least.';
+    return n < GOOD_PHOTOS ? 'Good. Keep going all the way round.' : 'Plenty of photos. Finish when you are back where you started.';
+  }
+  if (c.share >= 0.999 && n >= MIN_PHOTOS) {
+    return mode === 'around' ? 'All the way round. Go round again higher or lower, or finish.' : 'Every direction covered. Finish when ready.';
+  }
+  var pct = Math.round(c.share * 100);
+  return 'Good. ' + pct + '% covered: keep stepping ' + (mode === 'around' ? 'round the subject.' : 'along the walls.');
+}
+
+function setMessage(text, tone) {
+  $('message-text').textContent = text;
+  $('message').className = 'message ' + (tone || '');
+}
+
+// -- drawing the gauges -----------------------------------------------------------
+function draw() {
+  var m = MODES[mode], c = coverage(), svg = '', n = m.sectors, step = 360 / n;
+  for (var i = 0; i < n; i++) {
+    var a0 = (i * step - 90) * Math.PI / 180, a1 = ((i + 1) * step - 90 - 2) * Math.PI / 180;
+    var r0 = 34, r1 = 54;
+    var p = [Math.cos(a0) * r1, Math.sin(a0) * r1, Math.cos(a1) * r1, Math.sin(a1) * r1,
+      Math.cos(a1) * r0, Math.sin(a1) * r0, Math.cos(a0) * r0, Math.sin(a0) * r0].map(function (v) { return v.toFixed(1); });
+    var cls = c.counts[i] >= m.perSector ? 'got' : c.counts[i] > 0 ? 'half' : '';
+    svg += '<path class="sector ' + cls + '" d="M' + p[0] + ' ' + p[1] + ' A' + r1 + ' ' + r1 + ' 0 0 1 ' + p[2] + ' ' + p[3]
+      + ' L' + p[4] + ' ' + p[5] + ' A' + r0 + ' ' + r0 + ' 0 0 0 ' + p[6] + ' ' + p[7] + 'Z"/>';
+  }
+  if (heading != null) {
+    var where = mode === 'around' ? (heading + 180) % 360 : heading;
+    var a = (where - 90) * Math.PI / 180;
+    svg += '<line class="needle" x1="' + (Math.cos(a) * 26).toFixed(1) + '" y1="' + (Math.sin(a) * 26).toFixed(1)
+      + '" x2="' + (Math.cos(a) * 58).toFixed(1) + '" y2="' + (Math.sin(a) * 58).toFixed(1) + '"/>';
+  }
+  svg += '<text y="-4">' + (c.known ? Math.round(c.share * 100) + '%' : shots.length) + '</text>'
+    + '<text class="sub" y="12">' + (c.known ? 'covered' : 'photos') + '</text>';
+  $('ring').innerHTML = svg;
+
+  var good = shots.filter(function (s) { return s.flags.indexOf('blurred') < 0 && s.flags.indexOf('dark') < 0; }).length;
+  $('count').innerHTML = good + ' <small>good photo' + (good === 1 ? '' : 's') + '</small>';
+  var bars = '', target = GOOD_PHOTOS;
+  for (var b = 0; b < 10; b++) bars += '<i class="' + (good >= (b + 1) * target / 10 ? 'got' : '') + '"></i>';
+  $('bars').innerHTML = bars;
+  $('bars-left').textContent = good < MIN_PHOTOS ? 'at least ' + MIN_PHOTOS : 'enough';
+  $('bars-right').textContent = 'ideal ' + GOOD_PHOTOS + '+';
+  var flagged = shots.filter(function (s) { return s.flags.length; }).length;
+  var t = $('thumb');
+  t.style.backgroundImage = shots.length ? 'url(' + shots[shots.length - 1].url + ')' : '';
+  t.classList.toggle('flagged', flagged > 0);
+  $('flags').textContent = flagged;
+}
+
+function tick() {
+  if (!$('camera').classList.contains('on')) return;
+  // The level line turns green when the phone is held straight.
+  $('level').classList.toggle('flat', Math.abs(roll) < 4);
+  $('level').style.transform = 'rotate(' + (-roll).toFixed(1) + 'deg)';
+  if (heading != null) draw();
+  requestAnimationFrame(tick);
+}
+
+// -- review and sharing -----------------------------------------------------------
+function review() {
+  show('review');
+  var c = coverage(), n = shots.length;
+  var good = shots.filter(function (s) { return s.flags.indexOf('blurred') < 0 && s.flags.indexOf('dark') < 0; }).length;
+  $('review-title').textContent = n + ' photo' + (n === 1 ? '' : 's');
+  var problems = [];
+  if (good < MIN_PHOTOS) problems.push('Only ' + good + ' good photos: ' + MIN_PHOTOS + ' is the least for a usable model, ' + GOOD_PHOTOS + ' or more is better.');
+  if (c.known && c.share < 0.85) problems.push('About ' + Math.round(c.share * 100) + '% of the way round is covered. The gaps on the ring are where photos are missing.');
+  var count = function (f) { return shots.filter(function (s) { return s.flags.indexOf(f) >= 0; }).length; };
+  if (count('blurred')) problems.push(count('blurred') + ' blurred: delete them, or take them again.');
+  if (count('dark')) problems.push(count('dark') + ' too dark.');
+  if (count('gap')) problems.push(count('gap') + ' too far from the photo before: add photos in between.');
+  if (count('spun')) problems.push(count('spun') + ' taken after turning on the spot: these add little depth.');
+  if (count('same')) problems.push(count('same') + ' the same view as the one before.');
+  var v = $('verdict');
+  if (!problems.length) {
+    v.className = 'verdict good';
+    v.innerHTML = '<b>Ready.</b> Enough sharp, overlapping photos all the way round for a good model.';
+  } else {
+    v.className = 'verdict warn';
+    v.innerHTML = '<b>' + (good >= MIN_PHOTOS && (!c.known || c.share >= 0.85) ? 'Usable, could be better:' : 'Not enough yet:') + '</b><ul>'
+      + problems.map(function (p) { return '<li>' + p + '</li>'; }).join('') + '</ul>';
+  }
+  $('grid').innerHTML = shots.map(function (s) {
+    return '<div class="' + (s.flags.length ? 'flagged' : '') + '" style="background-image:url(' + s.url + ')" title="'
+      + (s.flags.join(', ') || 'good') + '"><button data-id="' + s.id + '">Delete</button></div>';
+  }).join('');
+}
+$('finish').addEventListener('click', review);
+$('thumb').addEventListener('click', review);
+$('back').addEventListener('click', function () { show('camera'); tick(); });
+$('grid').addEventListener('click', async function (e) {
+  var id = e.target.dataset && e.target.dataset.id;
+  if (!id) return;
+  id = Number(id);
+  await store('delete', id);
+  shots = shots.filter(function (s) { return s.id !== id; });
+  lastSig = null;
+  draw();
+  review();
+});
+$('clear').addEventListener('click', async function () {
+  if (!confirm('Delete all ' + shots.length + ' photos from this phone and start again?')) return;
+  await store('clear');
+  shots = []; lastSig = null;
+  draw();
+  show('start');
+  $('resume').hidden = true;
+});
+
+async function files() {
+  var saved = await store('all');
+  saved.sort(function (a, b) { return a.id - b.id; });
+  return saved.map(function (s, i) {
+    var name = 'capture_' + String(i + 1).padStart(3, '0') + '.jpg';
+    return new File([s.blob], name, { type: 'image/jpeg', lastModified: s.id });
+  });
+}
+
+$('share').addEventListener('click', async function () {
+  var list = await files();
+  if (!list.length) return;
+  if (navigator.canShare && navigator.canShare({ files: list })) {
+    try { await navigator.share({ files: list, title: 'Photos for Fiducia' }); }
+    catch (e) { if (e.name !== 'AbortError') alert('Sharing did not work: ' + e.message + '. Download the zip instead.'); }
+  } else {
+    alert('This browser cannot share files. Download the zip instead.');
+  }
+});
+
+$('zip').addEventListener('click', async function () {
+  var list = await files();
+  if (!list.length) return;
+  var blob = await zip(list);
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fiducia-photos-' + new Date().toISOString().slice(0, 10) + '.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+});
+
+// A zip with the photos stored as they are: JPEGs do not compress further.
+var CRC = (function () {
+  var t = new Uint32Array(256);
+  for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+function crc32(bytes) {
+  var c = 0xffffffff;
+  for (var i = 0; i < bytes.length; i++) c = CRC[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+async function zip(list) {
+  var parts = [], central = [], offset = 0, enc = new TextEncoder();
+  for (var i = 0; i < list.length; i++) {
+    var data = new Uint8Array(await list[i].arrayBuffer());
+    var name = enc.encode(list[i].name), crc = crc32(data);
+    var local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(8, 0, true);
+    local.setUint32(14, crc, true); local.setUint32(18, data.length, true); local.setUint32(22, data.length, true);
+    local.setUint16(26, name.length, true);
+    parts.push(local.buffer, name, data);
+    var cen = new DataView(new ArrayBuffer(46));
+    cen.setUint32(0, 0x02014b50, true); cen.setUint16(4, 20, true); cen.setUint16(6, 20, true);
+    cen.setUint32(16, crc, true); cen.setUint32(20, data.length, true); cen.setUint32(24, data.length, true);
+    cen.setUint16(28, name.length, true); cen.setUint32(42, offset, true);
+    central.push(cen.buffer, name);
+    offset += 30 + name.length + data.length;
+  }
+  var size = central.reduce(function (s, b) { return s + b.byteLength; }, 0);
+  var end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, list.length, true); end.setUint16(10, list.length, true);
+  end.setUint32(12, size, true); end.setUint32(16, offset, true);
+  return new Blob(parts.concat(central, [end.buffer]), { type: 'application/zip' });
+}
+
+// -- demo: a moving picture in place of the camera, for trying the page on a computer --
+var demoCanvas = null, demoDraw = null;
+function demoStream() {
+  var c = document.createElement('canvas');
+  demoCanvas = c;
+  c.width = 1280; c.height = 960;
+  var x = c.getContext('2d'), t = 0;
+  heading = 0;
+  var rng = function (s) { return function () { s = (s * 16807) % 2147483647; return s / 2147483647; }; }(7);
+  var dots = [];
+  for (var i = 0; i < 900; i++) dots.push([rng() * 3600, rng() * 960, 4 + rng() * 26, Math.floor(rng() * 360)]);
+  demoDraw = function () {
+    x.fillStyle = '#3a3f44'; x.fillRect(0, 0, 1280, 960);
+    var off = (heading || 0) * 10;
+    dots.forEach(function (d) {
+      var px = ((d[0] - off) % 3600 + 3600) % 3600;
+      if (px > 1300) return;
+      x.fillStyle = 'hsl(' + d[3] + ',55%,55%)';
+      x.beginPath(); x.arc(px, d[1], d[2], 0, 6.283); x.fill();
+    });
+    t++;
+  };
+  (function frame() { demoDraw(); requestAnimationFrame(frame); })();
+  // Each demo photo walks the heading on, as if a step were taken.
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') heading = ((heading || 0) + 15) % 360;
+    if (e.key === 'ArrowLeft') heading = ((heading || 0) + 345) % 360;
+    if (e.key === ' ') { e.preventDefault(); shoot(); }
+  });
+  return c.captureStream(30);
+}
+window.__capture = { shoot: shoot, review: review, set heading(h) { heading = h; }, get shots() { return shots; },
+  step: function () { steps += 1; } };
+})();
+</script>
+</body>
+</html>

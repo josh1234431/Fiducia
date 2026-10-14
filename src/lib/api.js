@@ -175,6 +175,7 @@ export const api = {
       return { vertices, triangles, positions, normals, colours, indices }
     },
     export: (which, path) => request('POST', '/scene/export', { which, path }),
+    exportColmap: (folder, maxPx) => request('POST', '/scene/export-colmap', { folder, maxPx }),
     /**
      * A cloud for the 3D view: positions relative to `origin` as 32-bit
      * floats, and colours as bytes. Decoded here, ready for the GPU.

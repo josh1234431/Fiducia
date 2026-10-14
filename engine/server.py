@@ -4386,7 +4386,8 @@ def _scene_setup(project, scene_state: dict, images: list) -> dict:
             observations[int(p)].append((index[image_id], float(col), float(row)))
     return {
         "data": data, "ids": ids, "observations": observations,
-        "infos": [{"path": by_id[i]["path"], "width": by_id[i]["width"], "height": by_id[i]["height"]} for i in ids],
+        "infos": [{"path": by_id[i]["path"], "name": by_id[i].get("name"), "width": by_id[i]["width"],
+                   "height": by_id[i]["height"]} for i in ids],
         "poses": {index[i]: scene_state["poses"][i] for i in ids},
         "lenses": {index[i]: lenses[i] for i in ids},
     }
@@ -4483,6 +4484,40 @@ def scene_mesh_data(ox: float = Query(0.0), oy: float = Query(0.0), oz: float = 
             + (placed - np.array([ox, oy, oz])).astype("<f4").tobytes()
             + normals.astype("<f4").tobytes() + colour_bytes + faces.astype("<u4").tobytes())
     return Response(content=body, media_type="application/octet-stream")
+
+
+@app.post("/scene/export-colmap")
+def scene_export_colmap(payload: dict = Body(...)) -> dict:
+    """The alignment in COLMAP's layout, for Gaussian splatting: undistorted
+    photos, cameras, poses and tie points, in a new folder inside the one chosen."""
+    from fiducia import scene_colmap
+
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    parent = payload.get("folder")
+    if not parent or not Path(parent).is_dir():
+        raise HTTPException(400, "Choose a folder to save into")
+    max_px = payload.get("maxPx", 3200)
+    max_px = int(max_px) if max_px else None
+    safe = "".join(c for c in (project.state.get("name") or "Model") if c not in '\\/:*?"<>|').strip() or "Model"
+    target = Path(parent) / f"{safe} for splatting"
+    number = 2
+    while target.exists():
+        target = Path(parent) / f"{safe} for splatting ({number})"
+        number += 1
+    images = [dict(i) for i in project.state.get("images", [])]
+
+    def work(progress, should_cancel):
+        setup = _scene_setup(project, scene_state, images)
+        data = setup["data"]
+        result = scene_colmap.export_colmap(
+            str(target), setup["infos"], setup["poses"], setup["lenses"], scene_state["transform"],
+            data["points"], data["colours"], setup["observations"], max_px=max_px,
+            progress=progress, should_cancel=should_cancel)
+        return result
+
+    job = jobs.submit("scene_colmap", "Exporting for splatting", work)
+    return {"job": job.to_dict(), "folder": str(target)}
 
 
 @app.post("/scene/crop")
