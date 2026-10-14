@@ -148,6 +148,8 @@ export default function Welcome() {
                 <input
                   id="np-name"
                   ref={nameRef}
+                  spellCheck={false}
+                  autoComplete="off"
                   value={draft.name}
                   onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                   onKeyDown={(event) => {
@@ -159,6 +161,7 @@ export default function Welcome() {
 
               <div className="field">
                 <label className="field__label">What are you processing?</label>
+                <div className="newproject__options">
                 {WORKFLOWS.map((workflow) => (
                   <button
                     key={workflow.id}
@@ -170,6 +173,7 @@ export default function Welcome() {
                     <span className="option__hint">{workflow.hint}</span>
                   </button>
                 ))}
+                </div>
               </div>
 
               <div className="field">

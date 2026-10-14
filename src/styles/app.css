@@ -2134,13 +2134,15 @@ kbd {
 .welcome__left {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   padding: var(--step-7) var(--step-6);
   overflow-y: auto;
 }
 
+/* Centred by its margins rather than by the column: content taller than
+   the window then scrolls from its top instead of being cut off above it. */
 .welcome__inner {
-  max-width: 46ch;
+  max-width: 600px;
+  margin-block: auto;
 }
 
 /* The hero is the thing this product actually is: a frame of aerial
@@ -3077,6 +3079,14 @@ kbd {
   .welcome__plate {
     display: none;
   }
+  /* Without the illustration the column stands in the middle of the
+     window, and the new-project form can use the width. */
+  .welcome__left {
+    align-items: center;
+  }
+  .welcome__inner {
+    width: 100%;
+  }
   :root {
     --rail-width: 62px;
   }
@@ -3102,7 +3112,17 @@ kbd {
   border-left: 2px solid var(--accent);
   padding: var(--step-1) 0 var(--step-1) var(--step-4);
   margin-bottom: var(--step-5);
-  max-width: 42ch;
+}
+
+/* The kinds of data side by side where there is room, so the form and its
+   Create button fit on a laptop screen without scrolling. */
+.newproject__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 6px;
+}
+.newproject__options .option {
+  margin-bottom: 0;
 }
 
 .newproject__path {
