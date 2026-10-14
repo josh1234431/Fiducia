@@ -387,7 +387,9 @@ def _match(a: dict, b: dict, focal_px: float, options: DroneMatchOptions):
                                             distanceThresh=1e6, mask=None)
     depth = world[2] / np.where(np.abs(world[3]) < 1e-12, 1e-12, world[3])
     good = (front.ravel() > 0) & np.isfinite(depth) & (depth > 0)
-    if good.sum() >= options.min_inliers:
+    # A close-range scene (a rock face, a building) spans many depths, so the
+    # band is only for photos looking down on the ground; None turns it off.
+    if options.depth_band is not None and good.sum() >= options.min_inliers:
         median = float(np.median(depth[good]))
         good &= (depth > median * options.depth_band[0]) & (depth < median * options.depth_band[1])
     inliers = pairs[keep][good]
