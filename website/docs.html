@@ -178,6 +178,23 @@ h1 { font-size: clamp(34px, 4.6vw, 52px); line-height: 1.05; font-weight: 800; l
 .lede { font-size: 18px; color: var(--ink-soft); max-width: 62ch; margin: 0; }
 .doc { padding: 36px 0 8px; border-bottom: 1px solid var(--rule); }
 .doc:last-of-type { border-bottom: 0; }
+/* Work that is usable but still settling: said plainly, in the warning colour. */
+.beta {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 7px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  font-family: var(--font-data);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 4px;
+}
+
 .doc__group { font-family: var(--font-data); font-size: 11.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
 .doc h2 { font-size: clamp(26px, 3vw, 34px); line-height: 1.12; font-weight: 800; letter-spacing: -0.025em; margin: 4px 0 14px; }
 .doc h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; margin: 26px 0 8px; }
@@ -422,9 +439,14 @@ td:first-child { color: var(--ink); font-weight: 600; }
       </ul>
     </section>
 
-    <section class="doc" id="scene" data-group="Getting started" data-title="Photos without GPS">
+    <section class="doc" id="scene" data-group="Getting started" data-title="Photos without GPS (beta)">
       <div class="doc__group">Getting started</div>
-      <h2>Photos without GPS</h2>
+      <h2>Photos without GPS <span class="beta">Beta</span></h2>
+      <div class="note">
+        <strong>In beta.</strong> Point clouds and meshes from photos are new in 0.4.0. They work, and are
+        tested, but they are still being refined: expect rough edges on real-world photos, and please report
+        what you find.
+      </div>
       <p>
         Photos from a phone or an ordinary camera, of an object, a building, a rock face or a small site,
         become a 3D point cloud with no GPS, no ground control and no camera calibration. Create the project
@@ -1170,6 +1192,14 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
     <section class="doc" id="release-notes" data-group="Help" data-title="Release notes">
       <div class="doc__group">Help</div>
       <h2>Release notes</h2>
+      <h3>0.4.0, 14 October 2026</h3>
+      <ul>
+        <li><strong>Photos without GPS (beta):</strong> a new kind of project for phone or camera photos of an object, building or site. Photos are placed from the photos alone, each camera with its own lens (two phones, or one phone's wide and zoom lenses), stood upright and scaled from one measured distance, or roughly from the phones' GPS.</li>
+        <li><strong>Dense point clouds and meshes (beta):</strong> a coloured point cloud for nearly every pixel, kept only where photos agree, and a solid coloured mesh fused from it. A 3D view to turn round or walk through, pick points and measure, with a crop box for the view and every export.</li>
+        <li>Export to PLY, LAS and LAZ for clouds and GLB, PLY and OBJ for meshes. The cloud also opens in the point cloud tools.</li>
+        <li>HEIC photos (the iPhone default) are read, and photos stored on their side are turned upright, as copies; the originals are never changed.</li>
+        <li>The new project form fits small windows, and is never cut off at the top.</li>
+      </ul>
       <h3>0.3.3, 13 October 2026</h3>
       <ul>
         <li>One rule for colours: fit (residuals, control RMS) is amber above 3 pixels, stated in metres for each block; accuracy from check points is judged against an <em>Accuracy target</em> on the Project step, and left uncoloured without one. Green and amber only ever mean quality.</li>

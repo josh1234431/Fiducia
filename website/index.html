@@ -540,6 +540,22 @@ section { padding-block: clamp(56px, 8vw, 104px); }
   font-variant-numeric: tabular-nums;
 }
 .ability__name { font-weight: 600; font-size: 15px; line-height: 1.4; }
+/* Work that is usable but still settling: said plainly, in the warning colour. */
+.beta {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
 .ability__note { font-size: 13.5px; line-height: 1.4; color: var(--ink-soft); }
 .abilities a:hover .ability__name { color: var(--accent-bright); text-decoration: underline; text-underline-offset: 3px; }
 .abilities a:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; border-radius: 4px; }
@@ -1239,6 +1255,7 @@ main, footer.foot { position: relative; z-index: 1; }
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="dem">Stereo DEM</button>
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="terrain">Terrain</button>
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="lidar">LiDAR</button>
+          <button class="tour__tab" role="tab" aria-selected="false" data-shot="scene">3D model <span class="beta">Beta</span></button>
           <button class="tour__tab" role="tab" aria-selected="false" data-shot="palette">Commands</button>
         </div>
         <figure class="window tour__stage" role="tabpanel">
@@ -1256,6 +1273,7 @@ main, footer.foot { position: relative; z-index: 1; }
           <img class="tour__slide" data-shot="dem" src="images/dem.jpg" width="2000" height="1250" loading="lazy" alt="The Stereo DEM step: a stereo pair side by side, with pairs ranked by base-to-height ratio">
           <img class="tour__slide" data-shot="terrain" src="images/terrain.jpg" width="2000" height="1250" loading="lazy" alt="The Terrain step: a shaded relief open on the canvas">
           <img class="tour__slide" data-shot="lidar" src="images/lidar.jpg" width="2000" height="1250" loading="lazy" alt="The LiDAR step: a forest point cloud from above, classified, with a side-on section through trees and buildings and the classes learned from labels">
+          <img class="tour__slide" data-shot="scene" src="images/scene.jpg" width="2000" height="1250" loading="lazy" alt="The 3D model step, in beta: a dense point cloud of a laptop on a wooden table, made from fifteen phone photos without GPS">
           <img class="tour__slide" data-shot="palette" src="images/palette.jpg" width="2000" height="1250" loading="lazy" alt="The command palette open over the workspace">
         </figure>
         <p class="tour__caption" id="tour-caption" aria-live="polite"></p>
@@ -1428,6 +1446,8 @@ main, footer.foot { position: relative; z-index: 1; }
         <li><a href="docs.html#step-ortho"><span class="ability__name">Orthophotos</span><span class="ability__note">generating orthophotos on any DEM in parallel</span></a></li>
         <li><a href="docs.html#step-mosaic"><span class="ability__name">Mosaics</span><span class="ability__note">balancing colour and routing seams where photos agree</span></a></li>
         <li><a href="docs.html#step-terrain"><span class="ability__name">Terrain</span><span class="ability__note">filling voids, shading relief, contouring and computing volumes</span></a></li>
+        <li><a href="docs.html#scene"><span class="ability__name">3D models from phone photos<span class="beta">Beta</span></span><span class="ability__note">dense point clouds from photos without GPS, from any phone or camera</span></a></li>
+        <li><a href="docs.html#scene-mesh"><span class="ability__name">Meshes and walk-throughs<span class="beta">Beta</span></span><span class="ability__note">coloured surfaces to walk through, saved as GLB, PLY or OBJ</span></a></li>
         <li><a href="docs.html#step-lidar"><span class="ability__name">LiDAR ground classification</span><span class="ability__note">finding the ground in unclassified point clouds</span></a></li>
         <li><a href="docs.html#step-lidar"><span class="ability__name">Canopy height models</span><span class="ability__note">measuring heights above ground, pit-free under dense canopy</span></a></li>
         <li><a href="docs.html#step-lidar"><span class="ability__name">LiDAR noise filtering</span><span class="ability__note">labelling birds, multipath and stray returns as noise</span></a></li>
@@ -1545,14 +1565,14 @@ main, footer.foot { position: relative; z-index: 1; }
             <circle cx="32" cy="32" r="4.75" fill="#3fc4a8"/>
           </svg>
           <div>
-            <div class="package__name">Fiducia 0.3.3</div>
+            <div class="package__name">Fiducia 0.4.0</div>
             <div class="package__file">Fiducia-Setup.exe</div>
           </div>
         </div>
         <dl class="specs">
-          <div><dt>Version</dt><dd>0.3.3</dd></div>
-          <div><dt>Size</dt><dd>190 MB</dd></div>
-          <div><dt>Released</dt><dd>13 Oct 2026</dd></div>
+          <div><dt>Version</dt><dd>0.4.0</dd></div>
+          <div><dt>Size</dt><dd>194 MB</dd></div>
+          <div><dt>Released</dt><dd>14 Oct 2026</dd></div>
         </dl>
         <a class="btn btn--primary btn--get" id="download-link"
            href="https://github.com/josh1234431/Fiducia-releases/releases/latest/download/Fiducia-Setup.exe">
@@ -1566,7 +1586,7 @@ main, footer.foot { position: relative; z-index: 1; }
         <div class="checksum">
           <span class="checksum__label">SHA-256, to check the download</span>
           <div class="checksum__row">
-            <code id="sha">4935a0cbf1d6ca74f5c2f91ddb2e0e66ff3dfd34ce77637249e3855ad78f2519</code>
+            <code id="sha">46d1b01a76ca7ebabf4e10efc64e5e16884d29a3e43da45fd75b6995fd19f3a6</code>
             <button class="replay" type="button" id="copy-sha">Copy</button>
           </div>
         </div>
@@ -1893,8 +1913,12 @@ main, footer.foot { position: relative; z-index: 1; }
       dem: '<b>Stereo DEM.</b> Every pair ranked by base-to-height ratio with a plain verdict, and shown side by side before you extract.',
       terrain: '<b>Terrain.</b> Shaded relief, contours, void filling, merging and volumes, from any elevation model in the project.',
       lidar: '<b>LiDAR.</b> A forest point cloud from above and in section, classified into ground, vegetation and buildings by a classifier trained on labelled points.',
+      scene: '<b>3D model, in beta.</b> Fifteen phone photos with no GPS, placed from the photos alone and matched into a 670,000-point coloured cloud. Meshes, a walk-through view and export to PLY, LAS and GLB come with it. Still being refined: expect rough edges.',
       palette: '<b>Commands.</b> <kbd>Ctrl</kbd> <kbd>K</kbd> reaches any step, photo or action by name.'
     };
+    // The project each screenshot shows, for the window's title.
+    var PROJECTS = { lidar: 'Forest plot', scene: 'Phone scan' };
+    var title = box.querySelector('.window__bar span');
     var index = 0, timer = 0, stopped = still, visible = false, DWELL = 6500;
     box.style.setProperty('--tour-ms', DWELL + 'ms');
 
@@ -1911,6 +1935,7 @@ main, footer.foot { position: relative; z-index: 1; }
         s.classList.toggle('on', on);
       });
       caption.innerHTML = CAPTIONS[shot];
+      title.textContent = 'Fiducia · ' + (PROJECTS[shot] || 'Lyons block');
       if (focus) tabs[index].focus();
       // restart the fill on the active tab
       box.classList.remove('running'); void box.offsetWidth;
