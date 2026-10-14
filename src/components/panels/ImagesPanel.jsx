@@ -30,6 +30,7 @@ export default function ImagesPanel() {
   const camera = project?.camera || {}
   const isFilm = (project?.mathModel?.kind || 'aerial_film') === 'aerial_film'
   const drone = workflowOf(project).id === 'drone'
+  const scene = workflowOf(project).id === 'scene'
   const calibrated = camera.fiducialsMm || {}
   const fit = image?.fiducialFit
 
@@ -147,7 +148,7 @@ export default function ImagesPanel() {
 
   return (
     <>
-      {!isFilm && images.filter((i) => i.online).length >= 2 && (
+      {!isFilm && !scene && images.filter((i) => i.online).length >= 2 && (
         <DroneAlignment block={project?.droneBlock} job={alignJob} call={call} />
       )}
 
@@ -190,7 +191,13 @@ export default function ImagesPanel() {
         )}
 
         {images.length === 0 ? (
-          drone ? (
+          scene ? (
+            <div className="empty-note">
+              Add the photos, as they came off the phone or camera: JPEG or HEIC, portrait or
+              landscape, from more than one phone if you like. Walk round the subject taking a
+              photo every step or two, so that every part of it is in at least three photos.
+            </div>
+          ) : drone ? (
             <div className="empty-note">
               Add the flight's photos (the JPEGs straight off the drone). Fiducia reads
               the camera and each photo's GPS position from them, then aligns them for

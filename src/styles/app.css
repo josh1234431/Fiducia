@@ -1098,6 +1098,23 @@
 }
 .viewer__legend-mark .marker__cross { width: 14px; height: 14px; }
 
+/* -- 3D model ------------------------------------------------------------- */
+.scene3d { touch-action: none; }
+.scene3d__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.scene3d__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.scene3d__swatch--camera { border: 1.5px solid var(--point-check); }
+.scene3d__swatch--mark { border-radius: 50%; background: var(--point-fiducial); }
+.row--static { cursor: default; }
+.row--static:hover { background: transparent; }
+
 /* -- block overview ------------------------------------------------------ */
 .overview {
   display: flex;

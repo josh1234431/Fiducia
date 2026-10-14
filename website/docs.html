@@ -321,7 +321,7 @@ td:first-child { color: var(--ink); font-weight: 600; }
       </p>
       <ol>
         <li>Choose <strong>New project</strong>, type a <strong>Project name</strong> and <strong>Choose a folder</strong>. Fiducia shows the exact bundle path it will create before you commit.</li>
-        <li>Answer <strong>What are you processing?</strong>: <em>Drone photos</em>, <em>Digital aerial photos</em>, <em>Scanned film photos</em>, <em>Satellite scenes</em> or <em>LiDAR point clouds</em>. This decides which steps lead the rail, in what order and under what names. The other steps stay under <strong>More tools</strong>, and you can change the choice later on the <a href="#step-project">Project</a> step without losing any work.</li>
+        <li>Answer <strong>What are you processing?</strong>: <em>Drone photos</em>, <em>Digital aerial photos</em>, <em>Scanned film photos</em>, <em>Satellite scenes</em>, <em>Photos without GPS</em> or <em>LiDAR point clouds</em>. This decides which steps lead the rail, in what order and under what names. The other steps stay under <strong>More tools</strong>, and you can change the choice later on the <a href="#step-project">Project</a> step without losing any work.</li>
         <li>Choose <strong>Create project</strong>. A project is a folder ending in <code>.fidu</code>; everything about it lives inside.</li>
         <li>Work down the steps on the left, from <a href="#step-project">Project</a> to <a href="#step-reports">Reports</a>. Each step shows whether it is ready, done or needs attention, so you can see the state of the whole block at a glance.</li>
       </ol>
@@ -422,6 +422,77 @@ td:first-child { color: var(--ink); font-weight: 600; }
       </ul>
     </section>
 
+    <section class="doc" id="scene" data-group="Getting started" data-title="Photos without GPS">
+      <div class="doc__group">Getting started</div>
+      <h2>Photos without GPS</h2>
+      <p>
+        Photos from a phone or an ordinary camera, of an object, a building, a rock face or a small site,
+        become a 3D point cloud with no GPS, no ground control and no camera calibration. Create the project
+        with <em>Photos without GPS</em>, and the rail reads Project, Photos, 3D model and Point cloud.
+      </p>
+      <div class="steps-strip">
+        <a href="#scene-photos">1 Photos</a><a href="#scene-align">2 Align</a><a href="#scene-scale">3 Scale</a><a href="#scene-dense">4 Dense cloud</a>
+      </div>
+
+      <h3 id="scene-photos">Taking and adding the photos</h3>
+      <p>
+        Walk round the subject taking a photo every step or two, so that every part of it is in at least
+        three photos, and neighbouring photos overlap by well over half. Add them in the
+        <strong>Photos</strong> step as they came off the phone. Portrait photos, which phones store on
+        their side, are turned upright, and HEIC photos are converted, as copies in the project folder;
+        the originals are never changed. Photos from more than one phone, or from one phone's wide and zoom
+        lenses, can be mixed.
+      </p>
+
+      <h3 id="scene-align">Aligning</h3>
+      <p>
+        On the <strong>3D model</strong> step, <strong>Align photos</strong> finds the same features in
+        overlapping photos and works out, from the photos alone, where each was taken. Photos are grouped by
+        the camera that took them, from what each photo records about it, and each camera gets its own
+        lens: focal length from the photos' 35&nbsp;mm equivalent, refined along with its distortion. The
+        step shows how many photos were placed, the tie points, and how closely they fit (the reprojection
+        error, well under a pixel for a good set). A photo that shares too little with the rest is left
+        out and named; a photo taken between it and its neighbours joins it in.
+      </p>
+      <p>
+        The canvas shows the model in 3D, with a small frame where each photo was taken. Drag to turn it,
+        right-drag or Shift-drag to move it, and scroll to come closer. <strong>Fit</strong> shows the whole
+        model again.
+      </p>
+
+      <h3 id="scene-scale">Scale</h3>
+      <p>
+        Photos alone show shape but not size. Choose <strong>Pick points</strong>, click two points on the
+        model whose distance you know (the ends of a tape or a scale bar, the width of a door), enter the
+        distance and choose <strong>Set scale</strong>. The further apart the two points, the better.
+        Picked points are also how you measure: the toolbar shows the distance between them. When the photos
+        carry GPS and were taken more than about 10&nbsp;m apart, the model is scaled and placed from it
+        roughly, in the UTM zone it is in; a measured distance is far better and replaces it.
+      </p>
+
+      <h3 id="scene-dense">The dense cloud</h3>
+      <p>
+        <strong>Build dense cloud</strong> matches each photo pixel by pixel with neighbours that see the
+        same place from a few steps away, and keeps a point only where another photo puts the surface at
+        the same distance, so moving leaves, reflections and sky mostly drop out. Points are coloured from
+        the photos. <em>Detail</em> sets the size the photos are matched at (1,000, 1,600 or 2,400 pixels
+        on the long side).
+      </p>
+      <p>
+        The cloud opens in the point cloud tools with <strong>Open in the point cloud tools</strong> (noise
+        removal, ground, heights and classes, as for LiDAR), and <strong>Export</strong> saves it, or the
+        tie points, as PLY for meshing and 3D software, or LAS or LAZ for point cloud and GIS software.
+      </p>
+
+      <h3>Getting good results</h3>
+      <ul>
+        <li>Move between photos rather than turning on the spot: photos taken from one place cannot measure depth.</li>
+        <li>Plain white walls, glass, water and shiny metal have nothing to match; texture, edges and detail match well.</li>
+        <li>Keep the light steady, and the subject still.</li>
+        <li>Put something of known length in the scene, as far across it as you can, for the scale.</li>
+      </ul>
+    </section>
+
     <section class="doc" id="workspace" data-group="Getting started" data-title="The workspace">
       <div class="doc__group">Getting started</div>
       <h2>The workspace</h2>
@@ -503,6 +574,7 @@ td:first-child { color: var(--ink); font-weight: 600; }
           <tr><td>Digital aerial photos</td><td>A calibrated digital frame camera without fiducial marks, described by its focal length, pixel size and dimensions</td></tr>
           <tr><td>Scanned film photos</td><td>Film frames with fiducial marks and a calibration certificate</td></tr>
           <tr><td>Satellite scenes</td><td>Scenes delivered with RPCs, refined with control (see <a href="#scripting">Scripting the engine</a>)</td></tr>
+          <tr><td>Photos without GPS</td><td>Phone or camera photos of an object, building or site, to a 3D point cloud; see <a href="#scene">Photos without GPS</a></td></tr>
           <tr><td>LiDAR point clouds</td><td>Airborne or drone LiDAR in LAS or LAZ: noise, ground, height above ground and classes from labels; see <a href="#step-lidar">LiDAR</a></td></tr>
         </tbody>
       </table></div>

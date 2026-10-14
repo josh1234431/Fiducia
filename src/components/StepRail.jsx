@@ -100,6 +100,19 @@ function readoutsFor({ workflow, summary, model, project, lidar, labelled }) {
     ]
   }
 
+  if (workflow === 'scene') {
+    const scene = project?.scene
+    const scaled = { distance: 'measured', gps: 'GPS, rough', none: 'none yet' }[scene?.transform?.scaleSource]
+    return [
+      { label: 'Photos', value: summary?.onlineCount ?? 0 },
+      { label: 'Placed', value: scene ? `${scene.placed} of ${scene.photos}` : 'not aligned',
+        tone: scene?.unplaced?.length ? 'warn' : '' },
+      ...(scene ? [{ label: 'Tie points', value: scene.points.toLocaleString() }] : []),
+      ...(scene?.dense ? [{ label: 'Dense points', value: points(scene.dense.points) }] : []),
+      ...(scene ? [{ label: 'Scale', value: scaled, tone: scene.transform.scaleSource === 'none' ? 'warn' : '' }] : []),
+    ]
+  }
+
   const offline = summary && summary.imageCount !== summary.onlineCount
   const rows = [{
     label: { drone: 'Photos', satellite: 'Scenes' }[workflow] || 'Photographs',

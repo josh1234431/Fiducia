@@ -138,6 +138,14 @@ export const STEPS = [
     blurb: 'Point cloud rasterisation and validation',
   },
   {
+    id: 'scene',
+    name: '3D model',
+    detail: 'Align, scale, dense cloud',
+    blurb: 'Place the photos, set the scale and build a dense point cloud',
+    // Only for photos without positions: elsewhere it is not a tool to reach for.
+    workflows: ['scene'],
+  },
+  {
     id: 'reports',
     name: 'Reports',
     detail: 'Residuals and QA',
@@ -197,6 +205,18 @@ export const WORKFLOWS = [
     labels: {},
   },
   {
+    id: 'scene',
+    name: 'Photos without GPS',
+    hint: 'Phone or camera photos of an object, building or site: a 3D point cloud.',
+    mathModel: null,
+    steps: ['project', 'images', 'scene', 'lidar'],
+    labels: {
+      project: { blurb: 'Name and notes' },
+      images: { name: 'Photos', detail: 'Phone or camera', blurb: 'Add the photos: JPEG or HEIC, any phone or camera, upright or not' },
+      lidar: { name: 'Point cloud', detail: 'Clean and classify', blurb: 'The dense cloud in the point cloud tools: noise, ground and classes' },
+    },
+  },
+  {
     id: 'lidar',
     name: 'LiDAR point clouds',
     hint: 'Airborne or drone LiDAR (LAS/LAZ): ground, heights and classes.',
@@ -213,6 +233,7 @@ export function workflowOf(project) {
   // Projects made before each kind of data had its own choice, or set to the
   // old "Everything", are given the one their contents show.
   const evident = () => {
+    if (project?.scene) return 'scene'
     if (project?.droneBlock) return 'drone'
     const lidarOnly = !project?.images?.length && (project?.lidarClouds?.length || project?.lidar?.length)
     if (lidarOnly) return 'lidar'
@@ -229,7 +250,8 @@ export function stepsFor(project) {
   const byId = Object.fromEntries(STEPS.map((step) => [step.id, step]))
   const order = workflow.steps
   const primary = order.map((id) => ({ ...byId[id], ...(workflow.labels[id] || {}) }))
-  const more = STEPS.filter((step) => !order.includes(step.id))
+  const more = STEPS.filter((step) => !order.includes(step.id)
+    && (!step.workflows || step.workflows.includes(workflow.id)))
   return { workflow, primary, more, all: [...primary, ...more] }
 }
 
@@ -268,6 +290,10 @@ export const useStore = create((set, get) => ({
   lidarBrush: null,           // the class new labels get in the side view, or null to pan
   lidarColour: 'height',      // how the point cloud view colours points: height, class or labels
   lidarLabelsVersion: 0,      // bumped when labels change, so counts refresh
+  sceneLayer: 'sparse',       // which cloud the 3D view shows: sparse or dense
+  sceneCameras: true,         // whether the 3D view draws the cameras
+  scenePicks: [],             // up to two points picked in the 3D view: [{ x, y, z }]
+  scenePicking: false,        // clicks in the 3D view pick points
   viewRequest: null,          // { imageId, col, row, scale, token }: move any view of that photo there
   ...initialIntro,            // the first-launch introduction, and the page it opens on
   author: readAuthor(),
@@ -541,7 +567,7 @@ export const useStore = create((set, get) => ({
       // output grid all come from them. A LiDAR project starts on its cloud,
       // which carries its own coordinate system.
       set({ project: payload.state, summary: payload.summary,
-            activeStep: { drone: 'images', lidar: 'lidar' }[workflow.id] || 'project',
+            activeStep: { drone: 'images', lidar: 'lidar', scene: 'images' }[workflow.id] || 'project',
             outputView: null, mosaicPreview: null })
       const patch = { workflow: workflow.id }
       if (workflow.mathModel) {
@@ -631,6 +657,9 @@ export const useStore = create((set, get) => ({
       lidarLabelCount: null,
       lidarSection: null,
       lidarBrush: null,
+      scenePicks: [],
+      scenePicking: false,
+      sceneLayer: 'sparse',
       outputView: null,
       mosaicPreview: null,
       poppedOut: [],
@@ -726,6 +755,14 @@ export const useStore = create((set, get) => ({
   setLidarSection: (lidarSection) => set({ lidarSection }),
   setLidarBrush: (lidarBrush) => set({ lidarBrush }),
   bumpLidarLabels: () => set((state) => ({ lidarLabelsVersion: state.lidarLabelsVersion + 1 })),
+  setSceneLayer: (sceneLayer) => set({ sceneLayer }),
+  setSceneCameras: (sceneCameras) => set({ sceneCameras }),
+  setScenePicking: (scenePicking) => set({ scenePicking }),
+  // A third pick starts a new pair.
+  addScenePick: (point) => set((state) => ({
+    scenePicks: state.scenePicks.length >= 2 ? [point] : [...state.scenePicks, point],
+  })),
+  clearScenePicks: () => set({ scenePicks: [] }),
 
   // -- outputs on the canvas --------------------------------------------
   //
@@ -900,6 +937,29 @@ function baseStatus(state, stepId) {
   const gnssHeld = online.filter((i) => i.exteriorObserved).length >= 3
     && (project.tiePoints || []).length > 0
   const drone = workflowOf(project).id === 'drone'
+
+  if (workflowOf(project).id === 'scene') {
+    // No projection or camera to set up: photos, then the model, then its cloud.
+    const scene = project.scene
+    switch (stepId) {
+      case 'project':
+        return 'done'
+      case 'images':
+        if (!images.length) return 'ready'
+        if (images.some((i) => !i.online)) return 'attention'
+        return online.length >= 3 ? 'done' : 'attention'
+      case 'scene':
+        if (online.length < 3) return 'locked'
+        if (!scene) return 'ready'
+        if (scene.unplaced?.length) return 'attention'
+        return scene.dense ? 'done' : 'ready'
+      case 'lidar':
+        if (!scene?.dense) return 'locked'
+        return (project.lidarClouds || []).length || (project.lidar || []).length ? 'done' : 'ready'
+      default:
+        break
+    }
+  }
 
   if (drone) {
     // The camera, positions and tie points all come from the photos, so the

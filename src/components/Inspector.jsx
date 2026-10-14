@@ -10,6 +10,7 @@ import DemPanel from './panels/DemPanel'
 import TerrainPanel from './panels/TerrainPanel'
 import LidarPanel from './panels/LidarPanel'
 import ReportsPanel from './panels/ReportsPanel'
+import ScenePanel from './panels/ScenePanel'
 import Fallback from './Fallback'
 import PanelToggle from './PanelToggle'
 
@@ -25,6 +26,7 @@ const PANELS = {
   terrain: TerrainPanel,
   lidar: LidarPanel,
   reports: ReportsPanel,
+  scene: ScenePanel,
 }
 
 // Why a step that was done is now out of date, in the words of each step.

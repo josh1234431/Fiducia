@@ -4,6 +4,7 @@ rasterio>=1.3
 pyproj>=3.5
 opencv-python-headless>=4.8
 Pillow>=10.0
+pillow-heif>=0.18   # iPhone photos (HEIC)
 laspy[lazrs]>=2.5
 fastapi>=0.110
 uvicorn[standard]>=0.27

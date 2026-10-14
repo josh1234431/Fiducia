@@ -151,6 +151,29 @@ export const api = {
     deleteTie: (id) => request('DELETE', `/points/tie/${id}`),
   },
 
+  scene: {
+    align: () => request('POST', '/scene/align', {}),
+    view: () => request('GET', '/scene/view'),
+    scale: (a, b, distance) => request('POST', '/scene/scale', { a, b, distance }),
+    dense: (detail) => request('POST', '/scene/dense', { detail }),
+    export: (which, path) => request('POST', '/scene/export', { which, path }),
+    /**
+     * A cloud for the 3D view: positions relative to `origin` as 32-bit
+     * floats, and colours as bytes. Decoded here, ready for the GPU.
+     */
+    cloud: async (which, origin, limit = 3000000) => {
+      const [ox, oy, oz] = origin
+      const params = new URLSearchParams({ which, limit: String(limit), ox, oy, oz })
+      const response = await fetch(`${baseUrl()}/scene/cloud?${params}`)
+      if (!response.ok) throw new EngineError(await response.text(), response.status)
+      const buffer = await response.arrayBuffer()
+      const count = new DataView(buffer).getUint32(0, true)
+      // Copied out, because 4 bytes in is not a multiple of a float's size.
+      const positions = new Float32Array(buffer.slice(4, 4 + 12 * count))
+      const colours = new Uint8Array(buffer, 4 + 12 * count, 3 * count)
+      return { count, positions, colours }
+    },
+  },
   drone: {
     align: (payload = {}) => request('POST', '/drone/align', payload),
     dense: (payload = {}) => request('POST', '/drone/dense', payload),

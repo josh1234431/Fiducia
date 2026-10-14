@@ -6,6 +6,7 @@ import ImageViewer from './components/ImageViewer'
 import StereoView from './components/StereoView'
 import PointCloudView from './components/PointCloudView'
 import BlockOverview from './components/BlockOverview'
+import SceneView from './components/SceneView'
 import OutputViewer, { MosaicPreviewStage } from './components/OutputViewer'
 import Inspector from './components/Inspector'
 import JobBar from './components/JobBar'
@@ -34,6 +35,7 @@ export default function App() {
   const lidarCloud = useStore((s) => s.lidarCloud)
   const blockView = useStore((s) => s.blockView)
   const solved = useStore((s) => !!s.project?.model?.exterior)
+  const aligned = useStore((s) => !!s.project?.scene)
   const showPair = activeStep === 'dem' && stereoPair
 
   // What the canvas shows: an output opened from its step, the mosaic preview
@@ -50,6 +52,8 @@ export default function App() {
     canvas = <PointCloudView key={lidarCloud} />
   } else if (activeStep === 'model' && blockView && solved) {
     canvas = <BlockOverview />
+  } else if (activeStep === 'scene' && aligned) {
+    canvas = <SceneView />
   }
 
   // Global keyboard. Every one of these exists because the equivalent on a

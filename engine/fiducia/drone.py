@@ -342,8 +342,13 @@ def _features(path: str, options: DroneMatchOptions):
             "scale": scale, "size": image.shape[::-1]}
 
 
-def _match(a: dict, b: dict, focal_px: float, options: DroneMatchOptions):
-    """Indices of features in a and b that are the same ground, geometry-checked."""
+def _match(a: dict, b: dict, focal_px: float, options: DroneMatchOptions,
+           focal_b: Optional[float] = None):
+    """Indices of features in a and b that are the same ground, geometry-checked.
+
+    ``focal_px`` is in a's working pixels. ``focal_b``, b's own in its working
+    pixels, is for photos from different cameras, or of different shapes.
+    """
     import cv2
 
     if a["descriptors"] is None or b["descriptors"] is None:
@@ -370,8 +375,16 @@ def _match(a: dict, b: dict, focal_px: float, options: DroneMatchOptions):
     # a fundamental matrix: it knows the photos come from the same calibrated lens.
     width, height = a["size"]
     k = np.array([[focal_px, 0, width / 2.0], [0, focal_px, height / 2.0], [0, 0, 1]])
+    threshold = options.ransac_px
+    if focal_b is not None:
+        # Each photo through its own camera onto the image plane at unit focal length.
+        wb, hb = b["size"]
+        pa = (pa - [width / 2.0, height / 2.0]) / focal_px
+        pb = (pb - [wb / 2.0, hb / 2.0]) / focal_b
+        k = np.eye(3)
+        threshold = options.ransac_px / math.sqrt(focal_px * focal_b)
     essential, mask = cv2.findEssentialMat(pa, pb, k, method=cv2.RANSAC, prob=0.999,
-                                           threshold=options.ransac_px)
+                                           threshold=threshold)
     if essential is None or mask is None:
         return np.zeros((0, 2), int)
     keep = mask.ravel().astype(bool)

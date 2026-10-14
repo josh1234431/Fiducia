@@ -7,7 +7,7 @@ datas, binaries, hiddenimports = [], [], []
 # Packages whose data files (GDAL and PROJ grids, Rust extensions) or
 # plug-in modules are loaded by name at run time, where static analysis
 # cannot see them.
-for package in ("rasterio", "pyproj", "laspy", "lazrs", "cv2", "pypdfium2", "pypdfium2_raw", "winrt"):
+for package in ("rasterio", "pyproj", "laspy", "lazrs", "cv2", "pypdfium2", "pypdfium2_raw", "winrt", "pillow_heif"):
     d, b, h = collect_all(package)
     datas += d
     binaries += b

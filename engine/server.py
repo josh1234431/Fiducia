@@ -486,14 +486,45 @@ def images_add(payload: dict = Body(...)) -> dict:
 
     added: list[dict] = []
 
+    # Photos without positions are seen the way they were taken: a phone
+    # stores a portrait photo on its side, and many store HEIC. Each is made
+    # upright, as a JPEG in the project, before anything reads it.
+    from fiducia import scene
+
+    upright: dict = {}
+    phone: dict = {}
+    if project.state.get("workflow") == "scene" or any(scene._is_heic(p) for p in paths):
+        heic = [Path(p).name for p in paths if scene._is_heic(p)]
+        if heic and not scene.heic_supported():
+            raise HTTPException(400, f"{len(heic)} HEIC photo{'s' if len(heic) != 1 else ''} "
+                                f"({', '.join(heic[:3])}) need the HEIC reader, which is not installed. "
+                                "Export them from the phone as JPEG, or set the iPhone to Most Compatible.")
+        folder = Path(project.directory) / "photos"
+        for raw in paths:
+            source = str(Path(raw).resolve())
+            try:
+                phone[source] = scene.photo_info(source)
+                upright[source] = scene.make_upright(source, str(folder))
+            except Exception as exc:  # noqa: BLE001 -- reported on the image, as for any unreadable file
+                phone.pop(source, None)
+                upright[source] = source
+                print(f"Could not prepare {source}: {exc}")
+
     def apply(state: dict) -> None:
         existing = {Path(i["path"]).resolve() for i in state["images"] if i.get("path")}
+        existing |= {Path(i["sourcePath"]).resolve() for i in state["images"] if i.get("sourcePath")}
         for raw in paths:
-            resolved = Path(raw).resolve()
-            if resolved in existing:
+            source = Path(raw).resolve()
+            if source in existing:
                 continue
+            resolved = Path(upright.get(str(source), source)).resolve()
             image = _blank_image(str(resolved))
+            image["name"] = source.stem
             image["storedPath"] = project.store_path(resolved)
+            if resolved != source:
+                image["sourcePath"] = str(source)
+            if str(source) in phone:
+                image["phone"] = phone[str(source)]
             _refresh_image_metadata(project, image)
             state["images"].append(image)
             added.append(image)
@@ -4073,6 +4104,345 @@ def reports_residual(payload: dict = Body(default={})) -> Response:
 
 
 # -- jobs ------------------------------------------------------------------
+
+
+# -- photos without GPS: structure from motion and a dense cloud -----------
+
+
+def _scene_folder(project) -> Path:
+    folder = Path(project.outputs_dir) / "scene"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def _scene_or_404(project) -> dict:
+    scene_state = project.state.get("scene")
+    if not scene_state or not scene_state.get("sparsePath"):
+        raise HTTPException(409, "Align the photos first")
+    return scene_state
+
+
+def _scene_sparse(project, scene_state: dict):
+    path = project.resolve_path(scene_state["sparsePath"])
+    if path is None:
+        raise HTTPException(404, "The alignment's points are missing from the project folder")
+    with np.load(path) as data:
+        return {k: data[k] for k in data.files}
+
+
+def _scene_lenses(scene_state: dict, images_by_id: dict) -> dict:
+    """Each placed photo's lens in full-size pixels, by image id."""
+    lenses = {}
+    for image_id, pose in scene_state["poses"].items():
+        camera = scene_state["cameras"][pose["camera"]]
+        image = images_by_id.get(image_id)
+        if not image:
+            continue
+        lenses[image_id] = {"focal": camera["focalPx"], "k1": camera["k1"], "k2": camera["k2"],
+                            "cx": int(image["width"]) / 2.0, "cy": int(image["height"]) / 2.0}
+    return lenses
+
+
+def _scene_cloud_name(project) -> str:
+    safe = "".join(c for c in (project.state.get("name") or "Scene") if c not in '\\/:*?"<>|').strip()
+    return f"{safe or 'Scene'} dense cloud.laz"
+
+
+def _scene_write_dense_laz(project, scene_state: dict) -> Optional[dict]:
+    """The dense cloud in the scene's frame, as a LAZ the point cloud tools open."""
+    from fiducia import scene
+
+    dense = scene_state.get("dense") or {}
+    if not dense.get("path"):
+        return None
+    points, colours = scene.read_cloud(str(project.resolve_path(dense["path"])))
+    target = _scene_folder(project) / _scene_cloud_name(project)
+    transform = scene_state["transform"]
+    return scene.write_cloud(str(target), scene.apply_transform(transform, points), colours,
+                             crs=transform.get("crs"))
+
+
+@app.post("/scene/align")
+def scene_align(payload: dict = Body(default={})) -> dict:
+    """Place photos that carry no positions: cameras, lenses and sparse points."""
+    from fiducia import scene, sfm
+
+    project = require_project()
+    images = [dict(i) for i in project.images_online()]
+    if len(images) < 3:
+        raise HTTPException(400, "Add at least three photos first")
+    folder = _scene_folder(project)
+
+    def work(progress, should_cancel):
+        progress(0.0, "Reading the photos")
+        infos = []
+        for image in images:
+            info = dict(image.get("phone") or scene.photo_info(image.get("sourcePath") or image["path"]))
+            # The file matched is the upright one.
+            info["width"], info["height"] = int(image["width"]), int(image["height"])
+            infos.append(info)
+        camera_of, groups = scene.camera_groups(infos)
+        focals = [g["focalPx"] for g in groups]
+        tracks, pair_matches, matched = sfm.match_photos(
+            [{"path": i["path"]} for i in images], [focals[c] for c in camera_of],
+            progress=lambda f, m: progress(0.02 + 0.43 * f, m), should_cancel=should_cancel)
+        result = sfm.reconstruct(
+            [(int(i["width"]), int(i["height"])) for i in images], tracks, pair_matches, focals,
+            progress=lambda f, m: progress(0.45 + 0.45 * f, m), should_cancel=should_cancel,
+            camera_of=camera_of, focal_known=[g["focalKnown"] for g in groups])
+
+        progress(0.92, "Standing the model upright")
+        points = result["points"]
+        colours = scene.sparse_colours([i["path"] for i in images], result["observations"])
+        transform = scene.level(result["poses"], points)
+        centres = {k: v["centre"] for k, v in result["poses"].items()}
+        placed_on_map = scene.gps_scale(transform, centres, dict(enumerate(infos)))
+        if placed_on_map:
+            transform = placed_on_map
+
+        obs = [(n, i, c, r) for n, track in enumerate(result["observations"]) for i, c, r in track]
+        arr = np.array(obs, float).reshape(-1, 4)
+        sparse_path = folder / "sparse.npz"
+        partial = folder / "sparse.part.npz"
+        np.savez_compressed(partial, points=points, colours=colours,
+                            obsPoint=arr[:, 0].astype(np.int32), obsPhoto=arr[:, 1].astype(np.int32),
+                            obsPixel=arr[:, 2:].astype(np.float32))
+        partial.replace(sparse_path)
+
+        cameras = []
+        for g, (group, lens) in enumerate(zip(groups, result["lenses"])):
+            cameras.append({**group, "focalPx": lens["focal"], "focalPrior": lens["focalPrior"],
+                            "k1": lens["k1"], "k2": lens["k2"], "placed": lens["placed"]})
+        poses = {images[i]["id"]: {"rvec": p["rvec"], "t": p["t"], "camera": int(camera_of[i])}
+                 for i, p in result["poses"].items()}
+        summary = result["summary"]
+        record = {
+            "alignedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "photos": len(images),
+            "placed": summary["placed"],
+            "unplaced": [images[i]["name"] for i in result["unplaced"]],
+            "points": summary["points"],
+            "meanTrackLength": round(summary["meanTrackLength"], 2),
+            "reprojectionRmsPx": round(summary["reprojectionRmsPx"], 3),
+            "focalSource": summary["focalSource"],
+            "pairsTried": matched["pairsTried"], "pairsMatched": matched["pairsMatched"],
+            "cameras": cameras,
+            "poses": poses,
+            "transform": transform,
+            "sparsePath": project.store_path(sparse_path),
+            # The alignment numbers photos in this order.
+            "order": [i["id"] for i in images],
+            "dense": None,
+        }
+
+        def apply(state: dict) -> None:
+            state["scene"] = record
+
+        project.mutate("scene_align", apply)
+        broadcast({"type": "project.changed", "operation": "scene_align"})
+        return {k: record[k] for k in ("placed", "photos", "points", "reprojectionRmsPx", "unplaced")} | \
+            {"scaleSource": transform["scaleSource"]}
+
+    job = jobs.submit("scene", "Aligning photos", work)
+    return {"job": job.to_dict()}
+
+
+@app.get("/scene/view")
+def scene_view() -> dict:
+    """The placed cameras in the scene's frame, for drawing, and what clouds there are."""
+    from fiducia import scene
+
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    transform = scene_state["transform"]
+    rotation = np.asarray(transform["rotation"], float)
+    images_by_id = {i["id"]: i for i in project.state.get("images", [])}
+    cameras = []
+    for image_id, pose in scene_state["poses"].items():
+        R = scene._rotation(pose["rvec"])
+        centre = -R.T @ np.asarray(pose["t"], float)
+        image = images_by_id.get(image_id, {})
+        lens = scene_state["cameras"][pose["camera"]]
+        cameras.append({
+            "id": image_id, "name": image.get("name", image_id),
+            "centre": scene.apply_transform(transform, centre[None, :])[0].tolist(),
+            # The camera's right, down and forward axes, in the scene.
+            "axes": (R @ rotation.T).tolist(),
+            "width": int(image.get("width") or 0), "height": int(image.get("height") or 0),
+            "focalPx": lens["focalPx"],
+        })
+    centres = np.array([c["centre"] for c in cameras]) if cameras else np.zeros((1, 3))
+    dense = scene_state.get("dense") or {}
+    laz = project.resolve_path(dense["lazPath"]) if dense.get("lazPath") else None
+    return clean({
+        "cameras": cameras,
+        "lazPath": str(laz) if laz else None,
+        "origin": np.round(centres.mean(axis=0), 1).tolist(),
+        "sparsePoints": scene_state.get("points"),
+        "densePoints": dense.get("points"),
+        "scaleSource": transform.get("scaleSource"),
+        "units": transform.get("units"),
+        "crs": transform.get("crs"),
+    })
+
+
+@app.get("/scene/cloud")
+def scene_cloud(which: str = Query("sparse"), limit: int = Query(2_000_000),
+                ox: float = Query(0.0), oy: float = Query(0.0), oz: float = Query(0.0)) -> Response:
+    """Points for the 3D view, as bytes: the count, then x, y, z as 32-bit floats
+    relative to the origin given, then red, green, blue as bytes."""
+    from fiducia import scene
+
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    if which == "dense":
+        dense = scene_state.get("dense") or {}
+        if not dense.get("path"):
+            raise HTTPException(404, "No dense cloud yet")
+        points, colours = scene.read_cloud(str(project.resolve_path(dense["path"])))
+    else:
+        data = _scene_sparse(project, scene_state)
+        points, colours = data["points"], data["colours"]
+    if len(points) > limit:
+        keep = np.random.default_rng(0).choice(len(points), limit, replace=False)
+        points, colours = points[keep], colours[keep]
+    placed = scene.apply_transform(scene_state["transform"], points) - np.array([ox, oy, oz])
+    body = (np.array([len(points)], "<u4").tobytes() + placed.astype("<f4").tobytes()
+            + np.asarray(colours, np.uint8).tobytes())
+    return Response(content=body, media_type="application/octet-stream")
+
+
+@app.post("/scene/scale")
+def scene_scale(payload: dict = Body(...)) -> dict:
+    """Scale the model from a distance measured on the subject between two points."""
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    a = np.asarray(payload.get("a"), float)
+    b = np.asarray(payload.get("b"), float)
+    distance = float(payload.get("distance") or 0)
+    if a.shape != (3,) or b.shape != (3,) or distance <= 0:
+        raise HTTPException(400, "Give two points and the distance between them")
+    length = float(np.linalg.norm(a - b))
+    if length <= 0:
+        raise HTTPException(400, "The two points are the same point")
+    k = distance / length
+    middle = (a + b) / 2.0
+    transform = dict(scene_state["transform"])
+    # About the middle of the two points, so a model on the map stays where it was.
+    transform["scale"] = float(transform["scale"]) * k
+    transform["shift"] = (k * np.asarray(transform["shift"], float) + (1 - k) * middle).tolist()
+    transform["scaleSource"] = "distance"
+    transform["units"] = "m"
+    transform["scaleDistanceM"] = distance
+    transform["scaleFactor"] = k
+
+    def apply(state: dict) -> None:
+        state["scene"]["transform"] = transform
+
+    project.mutate("scene_scale", apply)
+    if (scene_state.get("dense") or {}).get("path"):
+        def work(progress, should_cancel):
+            progress(0.1, "Writing the scaled cloud")
+            written = _scene_write_dense_laz(project, project.state["scene"])
+
+            def record(state: dict) -> None:
+                state["scene"]["dense"]["lazPath"] = project.store_path(written["path"])
+
+            project.mutate("scene_dense_scaled", record)
+            broadcast({"type": "project.changed", "operation": "scene_dense_scaled"})
+            return written
+
+        jobs.submit("scene_write", "Writing the scaled dense cloud", work)
+    return clean({"state": project.state, "factor": k})
+
+
+@app.post("/scene/dense")
+def scene_dense(payload: dict = Body(default={})) -> dict:
+    """A dense coloured point cloud from the aligned photos."""
+    from fiducia import scene_dense
+
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    detail = payload.get("detail", "medium")
+    if detail not in scene_dense.DETAIL_PX:
+        raise HTTPException(400, f"Unknown detail {detail!r}")
+    images = [dict(i) for i in project.state.get("images", [])]
+    work_dir = Path(project.cache_dir) / "scene_depths"
+
+    def work(progress, should_cancel):
+        import shutil
+
+        data = _scene_sparse(project, scene_state)
+        by_id = {i["id"]: i for i in images}
+        ids = [image_id for image_id in scene_state["poses"] if image_id in by_id and by_id[image_id].get("online")]
+        index = {image_id: n for n, image_id in enumerate(ids)}
+        lenses = _scene_lenses(scene_state, by_id)
+        # The sparse observations name photos by their place in the alignment's list.
+        observations: list = [[] for _ in range(len(data["points"]))]
+        order = scene_state["order"]
+        for p, photo, (col, row) in zip(data["obsPoint"], data["obsPhoto"], data["obsPixel"]):
+            image_id = order[int(photo)] if int(photo) < len(order) else None
+            if image_id in index:
+                observations[int(p)].append((index[image_id], float(col), float(row)))
+        infos = [{"path": by_id[i]["path"], "width": by_id[i]["width"], "height": by_id[i]["height"]} for i in ids]
+        poses = {index[i]: scene_state["poses"][i] for i in ids}
+        result = scene_dense.dense_cloud(
+            infos, poses, {index[i]: lenses[i] for i in ids}, data["points"], observations,
+            str(work_dir), scene_dense.DenseOptions(detail=detail),
+            progress=lambda f, m: progress(0.95 * f, m), should_cancel=should_cancel)
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+        progress(0.96, "Saving the cloud")
+        folder = _scene_folder(project)
+        path = folder / "dense.npz"
+        partial = folder / "dense.part.npz"
+        np.savez(partial, points=result["points"], colours=result["colours"])
+        partial.replace(path)
+        info = {**result["summary"], "path": project.store_path(path), "builtAt": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+        def apply(state: dict) -> None:
+            state["scene"]["dense"] = info
+
+        project.mutate("scene_dense", apply)
+        written = _scene_write_dense_laz(project, project.state["scene"])
+
+        def record(state: dict) -> None:
+            state["scene"]["dense"]["lazPath"] = project.store_path(written["path"])
+
+        project.mutate("scene_dense_laz", record)
+        broadcast({"type": "project.changed", "operation": "scene_dense"})
+        return {"points": info["points"], "lazPath": written["path"], "references": info["references"]}
+
+    job = jobs.submit("scene_dense", "Building the dense cloud", work)
+    return {"job": job.to_dict()}
+
+
+@app.post("/scene/export")
+def scene_export(payload: dict = Body(...)) -> dict:
+    """The sparse or dense cloud, in the scene's frame, as PLY, LAS or LAZ."""
+    from fiducia import scene
+
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    which = payload.get("which", "dense")
+    path = payload.get("path")
+    if not path:
+        raise HTTPException(400, "Choose where to save the cloud")
+    if which == "dense":
+        dense = scene_state.get("dense") or {}
+        if not dense.get("path"):
+            raise HTTPException(409, "Build the dense cloud first")
+        points, colours = scene.read_cloud(str(project.resolve_path(dense["path"])))
+    else:
+        data = _scene_sparse(project, scene_state)
+        points, colours = data["points"], data["colours"]
+    transform = scene_state["transform"]
+    try:
+        written = scene.write_cloud(path, scene.apply_transform(transform, points), colours,
+                                    crs=transform.get("crs"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return clean(written)
 
 
 @app.get("/jobs")

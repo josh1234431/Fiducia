@@ -119,7 +119,7 @@ export default function ProjectPanel() {
         ))}
       </section>
 
-      {workflow.id !== 'lidar' && (
+      {workflow.id !== 'lidar' && workflow.id !== 'scene' && (
         <section className="section">
           <div className="section__head">
             <span className="section__title">Accuracy target</span>
@@ -149,6 +149,9 @@ export default function ProjectPanel() {
         </section>
       )}
 
+      {/* A model from photos without positions has a frame of its own, or the
+          UTM zone its GPS gives it: nothing to choose. */}
+      {workflow.id !== 'scene' && (
       <section className="section">
         <div className="section__head">
           <span className="section__title">Projection</span>
@@ -261,6 +264,7 @@ export default function ProjectPanel() {
           </select>
         </div>
       </section>
+      )}
 
       <section className="section">
         <div className="section__head">
