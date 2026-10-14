@@ -196,7 +196,13 @@ def save_photo(image, path, make, model, focal_mm, focal35, orientation=1):
     detail = exif.get_ifd(0x8769)
     detail[0x920A] = IFDRational(int(round(focal_mm * 100)), 100)
     detail[0xA405] = int(focal35)
-    picture.save(path, "JPEG", quality=93, exif=exif)
+    if str(path).endswith(".heic"):
+        import pillow_heif
+
+        pillow_heif.register_heif_opener()
+        picture.save(path, quality=90, exif=exif.tobytes())
+    else:
+        picture.save(path, "JPEG", quality=93, exif=exif)
 
 
 # Two cameras. Main: 2000 x 1500, 26 mm equivalent. Zoom: 1600 x 1200, 52 mm.
@@ -235,7 +241,9 @@ for n, (kind, centre, portrait) in enumerate(shots):
     R = look_at(centre, aim, roll=rng.normal(0, 0.03))
     image = render(cam, R, centre, width, height)
     name = f"IMG_{n + 1:04d}"
-    save_photo(image, photos_dir / f"{name}.jpg", cam["make"], cam["model"], cam["focal_mm"],
+    # The last as an iPhone stores it by default: HEIC.
+    suffix = ".heic" if n == len(shots) - 1 else ".jpg"
+    save_photo(image, photos_dir / f"{name}{suffix}", cam["make"], cam["model"], cam["focal_mm"],
                cam["focal35"], orientation=6 if portrait else 1)
     truth[name] = {"centre": centre, "R": R, "kind": kind, "portrait": portrait}
 print(f"  {len(shots)} photos ({sum(1 for s in shots if s[2])} portrait, stored on their side) "
@@ -259,9 +267,12 @@ try:
     bundle = work / "Scene.fidu"
     call("POST", "/project/new", {"directory": str(bundle), "name": "Boxes"})
     call("PATCH", "/project", {"workflow": "scene"})
-    paths = sorted(str(p) for p in photos_dir.glob("*.jpg"))
+    paths = sorted(str(p) for p in photos_dir.iterdir())
     added = call("POST", "/images/add", {"paths": paths})["added"]
     check("every photo added", len(added) == len(paths), f"{len(added)} of {len(paths)}")
+    heic = [i for i in added if i.get("sourcePath", "").endswith(".heic")]
+    check("HEIC photo converted", len(heic) == 1 and heic[0]["online"] and heic[0]["width"] == ZOOM["size"][0],
+          f"{heic[0]['name']}: {heic[0]['width']} x {heic[0]['height']}" if heic else "none")
     portrait_ids = {i["id"] for i in added if truth[i["name"]]["portrait"]}
     upright_ok = all(i["height"] > i["width"] for i in added if i["id"] in portrait_ids)
     check("portrait photos stood upright", upright_ok and all(i.get("sourcePath") for i in added if i["id"] in portrait_ids),
