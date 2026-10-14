@@ -395,14 +395,19 @@ def dense_cloud(
         counts = np.bincount(inverse, n, minlength=len(unique))
 
     emitted = 0
+    confirmed_paths: dict = {}
     for done, i in enumerate(sorted(depth_paths)):
         if cancelled():
             raise InterruptedError("Cancelled")
         photo = photos[i]
         depth = np.load(depth_paths[i])
+        Path(depth_paths[i]).unlink(missing_ok=True)
         rows, cols = np.mgrid[0:depth.shape[0]:options.stride, 0:depth.shape[1]:options.stride]
+        # The depths that pass, on the same grid, kept for building a mesh.
+        kept = np.full(rows.shape, np.nan, np.float32)
         z = depth[rows, cols]
         keep = np.isfinite(z)
+        grid_rows, grid_cols = np.nonzero(keep)
         rows, cols, z = rows[keep], cols[keep], z[keep]
         if not z.size:
             continue
@@ -422,6 +427,9 @@ def dense_cloud(
             with np.errstate(invalid="ignore"):
                 confirmed += (np.abs(theirs - zk) <= options.tolerance * zk)
         good = confirmed >= options.confirmations
+        kept[grid_rows[good], grid_cols[good]] = z[good]
+        confirmed_paths[i] = str(Path(work_dir) / f"confirmed_{i}.npy")
+        np.save(confirmed_paths[i], kept)
         if good.any():
             world = world[good]
             colours = images[i][rows[good], cols[good]].astype(np.float64)
@@ -457,4 +465,7 @@ def dense_cloud(
             "detail": options.detail,
             "workingPx": max_px,
         },
+        # Each photo's checked depths, every stride-th working pixel: what a mesh is built from.
+        "depthMaps": confirmed_paths,
+        "depthStride": options.stride,
     }

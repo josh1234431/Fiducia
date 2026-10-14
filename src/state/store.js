@@ -294,6 +294,7 @@ export const useStore = create((set, get) => ({
   sceneCameras: true,         // whether the 3D view draws the cameras
   scenePicks: [],             // up to two points picked in the 3D view: [{ x, y, z }]
   scenePicking: false,        // clicks in the 3D view pick points
+  sceneCrop: null,            // { min, max }: the crop box as it is being set, in the scene's frame
   viewRequest: null,          // { imageId, col, row, scale, token }: move any view of that photo there
   ...initialIntro,            // the first-launch introduction, and the page it opens on
   author: readAuthor(),
@@ -659,6 +660,7 @@ export const useStore = create((set, get) => ({
       lidarBrush: null,
       scenePicks: [],
       scenePicking: false,
+      sceneCrop: null,
       sceneLayer: 'sparse',
       outputView: null,
       mosaicPreview: null,
@@ -763,6 +765,7 @@ export const useStore = create((set, get) => ({
     scenePicks: state.scenePicks.length >= 2 ? [point] : [...state.scenePicks, point],
   })),
   clearScenePicks: () => set({ scenePicks: [] }),
+  setSceneCrop: (sceneCrop) => set({ sceneCrop }),
 
   // -- outputs on the canvas --------------------------------------------
   //

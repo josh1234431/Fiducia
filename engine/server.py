@@ -4229,6 +4229,8 @@ def scene_align(payload: dict = Body(default={})) -> dict:
             "cameras": cameras,
             "poses": poses,
             "transform": transform,
+            "mesh": None,
+            "crop": None,
             "sparsePath": project.store_path(sparse_path),
             # The alignment numbers photos in this order.
             "order": [i["id"] for i in images],
@@ -4274,12 +4276,23 @@ def scene_view() -> dict:
     centres = np.array([c["centre"] for c in cameras]) if cameras else np.zeros((1, 3))
     dense = scene_state.get("dense") or {}
     laz = project.resolve_path(dense["lazPath"]) if dense.get("lazPath") else None
+    # How far the model reaches, without its furthest strays: the crop box's range.
+    if dense.get("path"):
+        model_points, _ = scene.read_cloud(str(project.resolve_path(dense["path"])))
+    else:
+        model_points = _scene_sparse(project, scene_state)["points"]
+    placed = scene.apply_transform(transform, model_points)
+    bounds = [np.percentile(placed, 0.5, axis=0).tolist(), np.percentile(placed, 99.5, axis=0).tolist()] \
+        if len(placed) else None
     return clean({
         "cameras": cameras,
+        "bounds": bounds,
         "lazPath": str(laz) if laz else None,
         "origin": np.round(centres.mean(axis=0), 1).tolist(),
         "sparsePoints": scene_state.get("points"),
         "densePoints": dense.get("points"),
+        "meshTriangles": (scene_state.get("mesh") or {}).get("triangles"),
+        "crop": scene_state.get("crop"),
         "scaleSource": transform.get("scaleSource"),
         "units": transform.get("units"),
         "crs": transform.get("crs"),
@@ -4356,6 +4369,141 @@ def scene_scale(payload: dict = Body(...)) -> dict:
     return clean({"state": project.state, "factor": k})
 
 
+def _scene_setup(project, scene_state: dict, images: list) -> dict:
+    """The placed photos, numbered from 0, with their poses, lenses and the
+    sparse points' observations in that numbering."""
+    data = _scene_sparse(project, scene_state)
+    by_id = {i["id"]: i for i in images}
+    ids = [image_id for image_id in scene_state["poses"] if image_id in by_id and by_id[image_id].get("online")]
+    index = {image_id: n for n, image_id in enumerate(ids)}
+    lenses = _scene_lenses(scene_state, by_id)
+    # The sparse observations name photos by their place in the alignment's list.
+    observations: list = [[] for _ in range(len(data["points"]))]
+    order = scene_state["order"]
+    for p, photo, (col, row) in zip(data["obsPoint"], data["obsPhoto"], data["obsPixel"]):
+        image_id = order[int(photo)] if int(photo) < len(order) else None
+        if image_id in index:
+            observations[int(p)].append((index[image_id], float(col), float(row)))
+    return {
+        "data": data, "ids": ids, "observations": observations,
+        "infos": [{"path": by_id[i]["path"], "width": by_id[i]["width"], "height": by_id[i]["height"]} for i in ids],
+        "poses": {index[i]: scene_state["poses"][i] for i in ids},
+        "lenses": {index[i]: lenses[i] for i in ids},
+    }
+
+
+def _scene_crop(scene_state: dict, points: np.ndarray) -> np.ndarray:
+    """Which scene-frame points are inside the crop box (all, without one)."""
+    crop = scene_state.get("crop")
+    if not crop:
+        return np.ones(len(points), bool)
+    lo, hi = np.asarray(crop["min"], float), np.asarray(crop["max"], float)
+    return np.all((points >= lo) & (points <= hi), axis=1)
+
+
+@app.post("/scene/mesh")
+def scene_mesh_build(payload: dict = Body(default={})) -> dict:
+    """A coloured surface mesh, fused from the dense step's depth maps."""
+    from fiducia import scene, scene_dense, scene_mesh
+
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    dense = scene_state.get("dense") or {}
+    if not dense.get("depthMaps"):
+        raise HTTPException(409, "Build the dense cloud first: the mesh is made from its depths")
+    detail = payload.get("detail", "medium")
+    if detail not in scene_mesh.MESH_DETAIL:
+        raise HTTPException(400, f"Unknown detail {detail!r}")
+    images = [dict(i) for i in project.state.get("images", [])]
+    work_dir = Path(project.cache_dir) / "scene_depths"
+
+    def work(progress, should_cancel):
+        setup = _scene_setup(project, scene_state, images)
+        if setup["ids"] != dense["depthPhotos"]:
+            raise ValueError("The photos have changed since the dense cloud was built: build it again first")
+        max_px = scene_dense.DETAIL_PX[dense["detail"]]
+        photos = {i: scene_dense._Photo(i, setup["infos"][i], setup["poses"][i], setup["lenses"][i], max_px)
+                  for i in setup["poses"]}
+        maps = {int(i): str(work_dir / name) for i, name in dense["depthMaps"].items()
+                if (work_dir / name).exists()}
+        if not maps:
+            raise ValueError("The dense cloud's depth maps are gone (the project's cache was cleared): "
+                             "build the dense cloud again first")
+        points, _ = scene.read_cloud(str(project.resolve_path(dense["path"])))
+        result = scene_mesh.build_mesh(
+            photos, maps, int(dense["depthStride"]), scene_dense._Images(photos), points, float(dense["voxel"]),
+            scene_mesh.MeshOptions(detail=detail),
+            progress=lambda f, m: progress(0.97 * f, m), should_cancel=should_cancel)
+        folder = _scene_folder(project)
+        path = folder / "mesh.npz"
+        partial = folder / "mesh.part.npz"
+        np.savez(partial, vertices=result["vertices"], faces=result["faces"].astype(np.int32),
+                 colours=result["colours"])
+        partial.replace(path)
+        info = {**result["summary"], "path": project.store_path(path),
+                "builtAt": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+        def apply(state: dict) -> None:
+            state["scene"]["mesh"] = info
+
+        project.mutate("scene_mesh", apply)
+        broadcast({"type": "project.changed", "operation": "scene_mesh"})
+        return {"triangles": info["triangles"], "vertices": info["vertices"]}
+
+    job = jobs.submit("scene_mesh", "Building the mesh", work)
+    return {"job": job.to_dict()}
+
+
+def _scene_mesh_data(project, scene_state: dict):
+    mesh = scene_state.get("mesh") or {}
+    if not mesh.get("path"):
+        raise HTTPException(404, "No mesh yet")
+    path = project.resolve_path(mesh["path"])
+    if path is None:
+        raise HTTPException(404, "The mesh is missing from the project folder")
+    with np.load(path) as data:
+        return data["vertices"], data["faces"].astype(np.int64), data["colours"]
+
+
+@app.get("/scene/meshdata")
+def scene_mesh_data(ox: float = Query(0.0), oy: float = Query(0.0), oz: float = Query(0.0)) -> Response:
+    """The mesh for the 3D view, as bytes: vertex and triangle counts, then
+    positions relative to the origin given and normals as 32-bit floats,
+    colours as bytes (padded to four), and the triangles' vertex numbers."""
+    from fiducia import scene, scene_mesh
+
+    project = require_project()
+    scene_state = _scene_or_404(project)
+    vertices, faces, colours = _scene_mesh_data(project, scene_state)
+    placed = scene.apply_transform(scene_state["transform"], vertices)
+    normals = scene_mesh.vertex_normals(placed, faces)
+    colour_bytes = np.asarray(colours, np.uint8).tobytes()
+    colour_bytes += bytes((-len(colour_bytes)) % 4)
+    body = (np.array([len(vertices), len(faces)], "<u4").tobytes()
+            + (placed - np.array([ox, oy, oz])).astype("<f4").tobytes()
+            + normals.astype("<f4").tobytes() + colour_bytes + faces.astype("<u4").tobytes())
+    return Response(content=body, media_type="application/octet-stream")
+
+
+@app.post("/scene/crop")
+def scene_crop(payload: dict = Body(...)) -> dict:
+    """A box, in the scene's frame, that exports and the 3D view keep to; none to clear it."""
+    project = require_project()
+    _scene_or_404(project)
+    crop = None
+    if payload.get("min") is not None and payload.get("max") is not None:
+        lo, hi = np.asarray(payload["min"], float), np.asarray(payload["max"], float)
+        if lo.shape != (3,) or hi.shape != (3,) or np.any(hi <= lo):
+            raise HTTPException(400, "The crop box needs a smaller and a larger corner")
+        crop = {"min": lo.tolist(), "max": hi.tolist()}
+
+    def apply(state: dict) -> None:
+        state["scene"]["crop"] = crop
+
+    project.mutate("scene_crop", apply)
+    return clean({"state": project.state})
+
+
 @app.post("/scene/dense")
 def scene_dense(payload: dict = Body(default={})) -> dict:
     """A dense coloured point cloud from the aligned photos."""
@@ -4372,25 +4520,13 @@ def scene_dense(payload: dict = Body(default={})) -> dict:
     def work(progress, should_cancel):
         import shutil
 
-        data = _scene_sparse(project, scene_state)
-        by_id = {i["id"]: i for i in images}
-        ids = [image_id for image_id in scene_state["poses"] if image_id in by_id and by_id[image_id].get("online")]
-        index = {image_id: n for n, image_id in enumerate(ids)}
-        lenses = _scene_lenses(scene_state, by_id)
-        # The sparse observations name photos by their place in the alignment's list.
-        observations: list = [[] for _ in range(len(data["points"]))]
-        order = scene_state["order"]
-        for p, photo, (col, row) in zip(data["obsPoint"], data["obsPhoto"], data["obsPixel"]):
-            image_id = order[int(photo)] if int(photo) < len(order) else None
-            if image_id in index:
-                observations[int(p)].append((index[image_id], float(col), float(row)))
-        infos = [{"path": by_id[i]["path"], "width": by_id[i]["width"], "height": by_id[i]["height"]} for i in ids]
-        poses = {index[i]: scene_state["poses"][i] for i in ids}
+        setup = _scene_setup(project, scene_state, images)
+        # Depth maps from an earlier build would mix with these.
+        shutil.rmtree(work_dir, ignore_errors=True)
         result = scene_dense.dense_cloud(
-            infos, poses, {index[i]: lenses[i] for i in ids}, data["points"], observations,
+            setup["infos"], setup["poses"], setup["lenses"], setup["data"]["points"], setup["observations"],
             str(work_dir), scene_dense.DenseOptions(detail=detail),
             progress=lambda f, m: progress(0.95 * f, m), should_cancel=should_cancel)
-        shutil.rmtree(work_dir, ignore_errors=True)
 
         progress(0.96, "Saving the cloud")
         folder = _scene_folder(project)
@@ -4398,7 +4534,10 @@ def scene_dense(payload: dict = Body(default={})) -> dict:
         partial = folder / "dense.part.npz"
         np.savez(partial, points=result["points"], colours=result["colours"])
         partial.replace(path)
-        info = {**result["summary"], "path": project.store_path(path), "builtAt": time.strftime("%Y-%m-%d %H:%M:%S")}
+        info = {**result["summary"], "path": project.store_path(path), "builtAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+                # Each photo's checked depths, kept to build a mesh from.
+                "depthMaps": {str(i): Path(p).name for i, p in result["depthMaps"].items()},
+                "depthStride": result["depthStride"], "depthPhotos": setup["ids"]}
 
         def apply(state: dict) -> None:
             state["scene"]["dense"] = info
@@ -4428,6 +4567,18 @@ def scene_export(payload: dict = Body(...)) -> dict:
     path = payload.get("path")
     if not path:
         raise HTTPException(400, "Choose where to save the cloud")
+    transform = scene_state["transform"]
+    if which == "mesh":
+        from fiducia import scene_mesh
+
+        vertices, faces, colours = _scene_mesh_data(project, scene_state)
+        placed = scene.apply_transform(transform, vertices)
+        inside = _scene_crop(scene_state, placed)
+        faces = faces[inside[faces].all(axis=1)]
+        try:
+            return clean(scene_mesh.write_mesh(path, placed, faces, colours))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
     if which == "dense":
         dense = scene_state.get("dense") or {}
         if not dense.get("path"):
@@ -4436,10 +4587,10 @@ def scene_export(payload: dict = Body(...)) -> dict:
     else:
         data = _scene_sparse(project, scene_state)
         points, colours = data["points"], data["colours"]
-    transform = scene_state["transform"]
+    placed = scene.apply_transform(transform, points)
+    inside = _scene_crop(scene_state, placed)
     try:
-        written = scene.write_cloud(path, scene.apply_transform(transform, points), colours,
-                                    crs=transform.get("crs"))
+        written = scene.write_cloud(path, placed[inside], colours[inside], crs=transform.get("crs"))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return clean(written)

@@ -431,7 +431,7 @@ td:first-child { color: var(--ink); font-weight: 600; }
         with <em>Photos without GPS</em>, and the rail reads Project, Photos, 3D model and Point cloud.
       </p>
       <div class="steps-strip">
-        <a href="#scene-photos">1 Photos</a><a href="#scene-align">2 Align</a><a href="#scene-scale">3 Scale</a><a href="#scene-dense">4 Dense cloud</a>
+        <a href="#scene-photos">1 Photos</a><a href="#scene-align">2 Align</a><a href="#scene-scale">3 Scale</a><a href="#scene-dense">4 Dense cloud</a><a href="#scene-mesh">5 Mesh</a>
       </div>
 
       <h3 id="scene-photos">Taking and adding the photos</h3>
@@ -482,6 +482,29 @@ td:first-child { color: var(--ink); font-weight: 600; }
         The cloud opens in the point cloud tools with <strong>Open in the point cloud tools</strong> (noise
         removal, ground, heights and classes, as for LiDAR), and <strong>Export</strong> saves it, or the
         tie points, as PLY for meshing and 3D software, or LAS or LAZ for point cloud and GIS software.
+      </p>
+
+      <h3 id="scene-mesh">The mesh</h3>
+      <p>
+        <strong>Build mesh</strong> joins the dense matching into one solid surface, coloured from the
+        photos. Each photo says how far away its surface is, and where most of them agree, that is the
+        surface; small plain patches with nothing to match, such as paint or a bare wall, are filled where
+        the surface round them is flat. Parts no photo saw stay open. <em>Detail</em> sets the size of
+        the smallest feature it can hold; a large subject is kept to a size a laptop can show smoothly.
+      </p>
+      <p>
+        Choose <strong>Mesh</strong> in the 3D view to see it, lit so its shape shows
+        (<strong>Shading</strong> off shows the photos' colours alone). <strong>Walk</strong> moves you
+        through it: <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or the arrow keys to move,
+        <kbd>Q</kbd> and <kbd>E</kbd> to go down and up, <kbd>Shift</kbd> to hurry, and drag to look
+        round. <strong>Orbit</strong> goes back to turning the model in front of you. <strong>Save
+        mesh</strong> writes GLB, which opens in Blender, Windows 3D Viewer, game engines and web viewers,
+        or PLY or OBJ.
+      </p>
+      <p>
+        <strong>Crop to a box</strong> keeps the view and every export to the part that matters: drag
+        the sliders to bring each side of the box in. Nothing is deleted; turn the crop off to bring it
+        all back.
       </p>
 
       <h3>Getting good results</h3>

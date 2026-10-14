@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../../state/store'
 import { api } from '../../lib/api'
 import InfoTip from '../InfoTip'
@@ -30,7 +30,9 @@ export default function ScenePanel() {
   const running = (kind) => jobs.find((j) => j.kind === kind && (j.status === 'running' || j.status === 'queued'))
   const aligning = running('scene')
   const densifying = running('scene_dense')
+  const meshing = running('scene_mesh')
   const [detail, setDetail] = useState('medium')
+  const [meshDetail, setMeshDetail] = useState('medium')
   const [distance, setDistance] = useState('')
 
   const transform = scene?.transform
@@ -53,14 +55,18 @@ export default function ScenePanel() {
 
   async function exportCloud(which) {
     if (!window.fiducia?.isDesktop) {
-      toast('Clouds can only be saved in the desktop app', 'warn')
+      toast('Models can only be saved in the desktop app', 'warn')
       return
     }
     const name = `${project?.name || 'Model'} ${which}`
     const target = await window.fiducia.dialog.saveFile({
-      title: `Save the ${which} cloud`,
-      defaultPath: `${name}.ply`,
-      filters: [
+      title: which === 'mesh' ? 'Save the mesh' : `Save the ${which} cloud`,
+      defaultPath: `${name}.${which === 'mesh' ? 'glb' : 'ply'}`,
+      filters: which === 'mesh' ? [
+        { name: 'GLB (3D software, game engines, the web)', extensions: ['glb'] },
+        { name: 'PLY (meshing software)', extensions: ['ply'] },
+        { name: 'OBJ', extensions: ['obj'] },
+      ] : [
         { name: 'PLY (meshing and 3D software)', extensions: ['ply'] },
         { name: 'LAZ (point cloud software)', extensions: ['laz'] },
         { name: 'LAS', extensions: ['las'] },
@@ -68,7 +74,10 @@ export default function ScenePanel() {
     })
     if (!target) return
     const result = await call(() => api.scene.export(which, target), { refresh: false })
-    if (result) toast(`Saved ${result.points.toLocaleString()} points to ${result.path}`, 'good', 9000)
+    if (!result) return
+    toast(which === 'mesh'
+      ? `Saved ${result.triangles.toLocaleString()} triangles to ${result.path}`
+      : `Saved ${result.points.toLocaleString()} points to ${result.path}`, 'good', 9000)
   }
 
   function openInTools() {
@@ -293,6 +302,75 @@ export default function ScenePanel() {
         </section>
       )}
 
+      {scene?.dense && (
+        <section className="section">
+          <div className="section__head">
+            <span className="section__title">Mesh</span>
+            <span className="section__rule" />
+            <InfoTip>
+              A solid surface, coloured from the photos, made from the dense matching's depths:
+              each photo says how far its surface is, and where most of them agree, that is the
+              surface. Walk through it on the canvas, or save it for 3D software and game
+              engines. Parts no photo saw are left open.
+            </InfoTip>
+          </div>
+
+          {scene.mesh && (
+            <>
+              <div className="measures">
+                <div className="measure">
+                  <div className="measure__name">Triangles</div>
+                  <div className="measure__value">{scene.mesh.triangles.toLocaleString()}</div>
+                </div>
+                <div className="measure">
+                  <div className="measure__name">Detail</div>
+                  <div className="measure__value">
+                    {(scene.mesh.voxel * (transform.scale || 1) * (units === 'm' ? 100 : 1)).toFixed(units === 'm' ? 1 : 4)}
+                    {units === 'm' ? ' cm' : ' units'}
+                  </div>
+                </div>
+              </div>
+              <div className="field__hint" style={{ marginTop: 'var(--step-2)' }}>
+                {scene.mesh.detail} detail, built {scene.mesh.builtAt}.
+                {scene.mesh.fragmentsDropped > 0 && ` ${scene.mesh.fragmentsDropped.toLocaleString()} stray `
+                  + `fragment${scene.mesh.fragmentsDropped === 1 ? '' : 's'} left out.`}
+                {scene.dense.builtAt > scene.mesh.builtAt && ' The dense cloud has been built again since.'}
+              </div>
+            </>
+          )}
+
+          <div className="field" style={{ marginTop: 'var(--step-3)' }}>
+            <label className="field__label">
+              <span>
+                Detail
+                <InfoTip>
+                  The size of the smallest feature the mesh can hold, from the dense cloud's
+                  point spacing. A large subject is kept to a size a laptop can show smoothly,
+                  so its detail is coarser.
+                </InfoTip>
+              </span>
+            </label>
+            <select value={meshDetail} onChange={(event) => setMeshDetail(event.target.value)}>
+              <option value="low">Low (up to 1 million cells)</option>
+              <option value="medium">Medium (up to 2.5 million)</option>
+              <option value="high">High (up to 5 million)</option>
+            </select>
+          </div>
+          <button
+            className={`btn btn--block ${scene.mesh ? '' : 'btn--primary'}`}
+            disabled={!!meshing || !!densifying || !!aligning}
+            onClick={async () => {
+              const result = await call(() => api.scene.mesh(meshDetail), { refresh: false })
+              if (result) setLayer('mesh')
+            }}
+          >
+            {meshing ? (meshing.message || 'Building…') : scene.mesh ? 'Build again' : 'Build mesh'}
+          </button>
+        </section>
+      )}
+
+      {scene && <CropBox scene={scene} />}
+
       {scene && (
         <section className="section">
           <div className="section__head">
@@ -312,8 +390,91 @@ export default function ScenePanel() {
               Save tie points…
             </button>
           </div>
+          {scene.mesh && (
+            <button className="btn btn--block" style={{ marginTop: 'var(--step-2)' }} onClick={() => exportCloud('mesh')}>
+              Save mesh…
+            </button>
+          )}
         </section>
       )}
     </>
+  )
+}
+
+const AXES = ['X', 'Y', 'Z']
+
+/**
+ * A box round the part of the model that matters: the 3D view and every
+ * export keep to it, so the car park behind a statue goes. Nothing is
+ * deleted; clearing the box brings it all back.
+ */
+function CropBox({ scene }) {
+  const crop = useStore((s) => s.sceneCrop)
+  const setCrop = useStore((s) => s.setSceneCrop)
+  const toast = useStore((s) => s.toast)
+  const [bounds, setBounds] = useState(null)
+  const timer = useRef(null)
+
+  useEffect(() => {
+    let live = true
+    api.scene.view().then((view) => { if (live) setBounds(view.bounds) }).catch(() => {})
+    return () => { live = false }
+  }, [scene.alignedAt, scene.transform?.scale, scene.dense?.builtAt])
+
+  function save(box) {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => {
+      api.scene.crop(box).catch((e) => toast(e.message, 'bad'))
+    }, 400)
+  }
+
+  function change(edge, axis, value) {
+    const next = { min: [...crop.min], max: [...crop.max] }
+    next[edge][axis] = value
+    // The two sides never cross.
+    const gap = (bounds[1][axis] - bounds[0][axis]) / 200
+    if (edge === 'min') next.min[axis] = Math.min(value, next.max[axis] - gap)
+    else next.max[axis] = Math.max(value, next.min[axis] + gap)
+    setCrop(next)
+    save(next)
+  }
+
+  function toggle(on) {
+    const box = on && bounds ? { min: [...bounds[0]], max: [...bounds[1]] } : null
+    setCrop(box)
+    clearTimeout(timer.current)
+    api.scene.crop(box).catch((e) => toast(e.message, 'bad'))
+  }
+
+  return (
+    <section className="section">
+      <div className="section__head">
+        <span className="section__title">Crop</span>
+        <span className="section__rule" />
+        <InfoTip>
+          Keeps the view and every export to a box round the subject: the ground running off
+          to the horizon, or a stray piece of sky, is left out. Nothing is deleted; turn the
+          crop off to bring everything back.
+        </InfoTip>
+      </div>
+      <label className="field field--row">
+        <span className="field__label">Crop to a box</span>
+        <input type="checkbox" aria-label="Crop to a box" checked={!!crop} disabled={!bounds}
+               onChange={(e) => toggle(e.target.checked)} />
+      </label>
+      {crop && bounds && AXES.map((name, axis) => {
+        const lo = bounds[0][axis], hi = bounds[1][axis]
+        const step = (hi - lo) / 200 || 0.001
+        return (
+          <div className="crop__axis" key={name}>
+            <span>{name}</span>
+            <input type="range" min={lo} max={hi} step={step} value={Math.max(lo, crop.min[axis])}
+                   aria-label={`${name} from`} onChange={(e) => change('min', axis, Number(e.target.value))} />
+            <input type="range" min={lo} max={hi} step={step} value={Math.min(hi, crop.max[axis])}
+                   aria-label={`${name} to`} onChange={(e) => change('max', axis, Number(e.target.value))} />
+          </div>
+        )
+      })}
+    </section>
   )
 }

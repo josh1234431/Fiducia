@@ -156,6 +156,24 @@ export const api = {
     view: () => request('GET', '/scene/view'),
     scale: (a, b, distance) => request('POST', '/scene/scale', { a, b, distance }),
     dense: (detail) => request('POST', '/scene/dense', { detail }),
+    mesh: (detail) => request('POST', '/scene/mesh', { detail }),
+    crop: (box) => request('POST', '/scene/crop', box || {}),
+    /** The mesh for the 3D view, decoded: positions and normals, colours, triangles. */
+    meshData: async (origin) => {
+      const [ox, oy, oz] = origin
+      const response = await fetch(`${baseUrl()}/scene/meshdata?${new URLSearchParams({ ox, oy, oz })}`)
+      if (!response.ok) throw new EngineError(await response.text(), response.status)
+      const buffer = await response.arrayBuffer()
+      const header = new DataView(buffer)
+      const vertices = header.getUint32(0, true)
+      const triangles = header.getUint32(4, true)
+      let at = 8
+      const positions = new Float32Array(buffer, at, 3 * vertices); at += 12 * vertices
+      const normals = new Float32Array(buffer, at, 3 * vertices); at += 12 * vertices
+      const colours = new Uint8Array(buffer, at, 3 * vertices); at += Math.ceil((3 * vertices) / 4) * 4
+      const indices = new Uint32Array(buffer, at, 3 * triangles)
+      return { vertices, triangles, positions, normals, colours, indices }
+    },
     export: (which, path) => request('POST', '/scene/export', { which, path }),
     /**
      * A cloud for the 3D view: positions relative to `origin` as 32-bit

@@ -1112,6 +1112,46 @@
 }
 .scene3d__swatch--camera { border: 1.5px solid var(--point-check); }
 .scene3d__swatch--mark { border-radius: 50%; background: var(--point-fiducial); }
+.scene3d__swatch--crop { border: 1.5px dashed var(--signal-warn); }
+.scene3d:focus { outline: none; }
+.scene3d--walk { cursor: move; }
+.scene3d__keys {
+  position: absolute;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: var(--type-small);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.scene3d__keys kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin: 0 1px;
+  padding: 0 4px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  font-family: var(--font-data);
+  font-size: var(--type-micro);
+  text-align: center;
+  color: var(--ink);
+}
+.crop__axis {
+  display: grid;
+  grid-template-columns: 18px 1fr 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.crop__axis span { color: var(--ink-muted); font-family: var(--font-data); font-size: var(--type-small); }
+.crop__axis input[type='range'] { width: 100%; }
 .row--static { cursor: default; }
 .row--static:hover { background: transparent; }
 

@@ -362,6 +362,58 @@ try:
         written = call("POST", "/scene/export", {"which": "dense", "path": str(work / f"export{suffix}")})
         check(f"export {suffix}", Path(written["path"]).exists() and written["points"] == dense_state["points"],
               f"{Path(written['path']).stat().st_size / 1e6:.1f} MB")
+
+    print("\n=== Mesh ===")
+    start = time.time()
+    job = wait_for_job(call("POST", "/scene/mesh", {"detail": "medium"})["job"]["id"])
+    check("mesh built", job["status"] == "done", job.get("error") or job["message"])
+    mesh_state = call("GET", "/project")["state"]["scene"]["mesh"]
+    raw = call("GET", "/scene/meshdata", raw=True)
+    nv, nf = struct.unpack("<II", raw[:8])
+    at = 8
+    V = np.frombuffer(raw[at:at + 12 * nv], "<f4").reshape(-1, 3).astype(float); at += 24 * nv
+    at += -(-3 * nv // 4) * 4
+    F = np.frombuffer(raw[at:at + 12 * nf], "<u4").reshape(-1, 3).astype(np.int64)
+    check("mesh for the 3D view", nf == mesh_state["triangles"] and len(raw) == at + 12 * nf,
+          f"{nf:,} triangles, {nv:,} vertices, {time.time() - start:.0f} s")
+    V = V @ Rm2.T * s2 + t2
+    d = distance_to_scene(V)
+    check("mesh on the true surfaces", np.median(d) < 0.006 and np.percentile(d, 90) < 0.02,
+          f"median {1000 * np.median(d):.1f} mm, 90% within {1000 * np.percentile(d, 90):.1f} mm, "
+          f"cells {100 * mesh_state['voxel'] * s2:.1f} cm")
+    near, _ = cKDTree(V).query(np.array(samples))
+    check("the big box's sides in the mesh", np.mean(near < 0.02) > 0.85,
+          f"{100 * np.mean(near < 0.02):.0f}% within 2 cm of a vertex")
+    # Faces turn outwards: on open ground, up.
+    normal = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    centre = V[F].mean(axis=1)
+    ground = (np.abs(centre[:, 2]) < 0.03) & (np.hypot(centre[:, 0] - 0.4, centre[:, 1] + 0.3) > 2.5)
+    up = np.mean(normal[ground, 2] > 0)
+    check("faces turned outwards", up > 0.95, f"{100 * up:.1f}% of the open ground's faces face up")
+
+    glb = work / "mesh.glb"
+    written = call("POST", "/scene/export", {"which": "mesh", "path": str(glb)})
+    blob = glb.read_bytes()
+    magic, version, size = struct.unpack("<III", blob[:12])
+    json_length = struct.unpack("<I", blob[12:16])[0]
+    gltf = json.loads(blob[20:20 + json_length])
+    check("GLB export", magic == 0x46546C67 and version == 2 and size == len(blob)
+          and gltf["accessors"][0]["count"] == nv and gltf["accessors"][3]["count"] == 3 * nf,
+          f"{len(blob) / 1e6:.1f} MB, glTF 2.0")
+    for suffix in (".ply", ".obj"):
+        written = call("POST", "/scene/export", {"which": "mesh", "path": str(work / f"mesh{suffix}")})
+        check(f"mesh export {suffix}", Path(written["path"]).exists() and written["triangles"] == nf,
+              f"{Path(written['path']).stat().st_size / 1e6:.1f} MB")
+
+    # A crop round the big box: exports keep to it.
+    lo, hi = BOXES[0][0] - 0.1, BOXES[0][1] + 0.1
+    box = ((np.array([lo, hi]) - t2) @ Rm2) / s2
+    call("POST", "/scene/crop", {"min": box.min(axis=0).tolist(), "max": box.max(axis=0).tolist()})
+    written = call("POST", "/scene/export", {"which": "mesh", "path": str(work / "cropped.ply")})
+    cropped = call("POST", "/scene/export", {"which": "dense", "path": str(work / "cropped.laz")})
+    check("crop keeps exports to the box", written["triangles"] < nf / 3 and cropped["points"] < dense_state["points"] / 3,
+          f"{written['triangles']:,} of {nf:,} triangles, {cropped['points']:,} of {dense_state['points']:,} points")
+    call("POST", "/scene/crop", {})
 finally:
     server.terminate()
     server.wait(timeout=20)
