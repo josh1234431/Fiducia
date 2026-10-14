@@ -537,13 +537,19 @@ class Project:
         bundle to another machine keeps every link intact.
         """
         target = Path(os.path.abspath(absolute))
-        for base in (self.directory, self.directory.parent):
+        # Compared as the file system names them: on Windows the same folder
+        # can arrive as C:\Users\JOSHUA~1\... (an 8.3 short name, which is how
+        # TEMP is often set) or by its long name, and a link can stand for a
+        # folder elsewhere. Unresolved, a photo beside the bundle looks
+        # unrelated to it and its path is stored absolute.
+        resolved = target.resolve()
+        bundle = self.directory.resolve()
+        for base in (bundle, bundle.parent):
             try:
-                return str(target.relative_to(base)) if base == self.directory else str(
-                    Path("..") / target.relative_to(base)
-                )
+                inside = resolved.relative_to(base)
             except ValueError:
                 continue
+            return str(inside) if base == bundle else str(Path("..") / inside)
         return str(target)
 
     def resolve_path(self, stored: str) -> Optional[Path]:
