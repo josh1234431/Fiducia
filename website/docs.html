@@ -1192,6 +1192,11 @@ curl localhost:8731/jobs?activeOnly=true</code></pre>
     <section class="doc" id="release-notes" data-group="Help" data-title="Release notes">
       <div class="doc__group">Help</div>
       <h2>Release notes</h2>
+      <h3>0.4.1, 14 October 2026</h3>
+      <ul>
+        <li>Photos taken in a phone's high-resolution mode (50 megapixels and more) now align fully: alignment could stop partway and leave a group of photos out. If any photos are left, it starts again among them and keeps whichever model places more. If a project left photos out, choose <strong>Align again</strong>, then build the dense cloud again.</li>
+        <li>If the engine stops unexpectedly, a record of what it was doing is written to <span class="data">%LOCALAPPDATA%\Fiducia\logs\engine-crash.log</span>, so the cause can be found.</li>
+      </ul>
       <h3>0.4.0, 14 October 2026</h3>
       <ul>
         <li><strong>Photos without GPS (beta):</strong> a new kind of project for phone or camera photos of an object, building or site. Photos are placed from the photos alone, each camera with its own lens (two phones, or one phone's wide and zoom lenses), stood upright and scaled from one measured distance, or roughly from the phones' GPS.</li>
