@@ -82,13 +82,24 @@ class JobQueue:
     collecting tie points for the next block while it runs.
     """
 
+    # Work the operator did not ask for directly waits behind work they did.
+    BACKGROUND = {"overviews"}
+
     def __init__(self, max_concurrent: int = 3, history: int = 200):
+        import itertools
+        import queue
+
         self._jobs: dict[str, Job] = {}
         self._order: deque[str] = deque(maxlen=history)
         self._cancels: dict[str, threading.Event] = {}
         self._lock = threading.RLock()
-        self._semaphore = threading.Semaphore(max_concurrent)
         self._listeners: list[Callable[[dict], None]] = []
+        # A fixed set of workers taking jobs in turn: a thousand queued jobs
+        # are a thousand entries, not a thousand waiting threads.
+        self._queue: "queue.PriorityQueue" = queue.PriorityQueue()
+        self._sequence = itertools.count()
+        self._max = max(1, max_concurrent)
+        self._workers: list[threading.Thread] = []
 
     # -- subscription ----------------------------------------------------
 
@@ -137,21 +148,25 @@ class JobQueue:
 
         self._emit(job)
 
-        thread = threading.Thread(target=self._run, args=(job, work), daemon=True)
-        thread.start()
+        priority = 1 if kind in self.BACKGROUND else 0
+        self._queue.put((priority, next(self._sequence), job, work))
+        with self._lock:
+            if len(self._workers) < self._max:
+                worker = threading.Thread(target=self._work, daemon=True, name=f"job-worker-{len(self._workers)}")
+                self._workers.append(worker)
+                worker.start()
         return job
+
+    def _work(self) -> None:
+        while True:
+            _, _, job, work = self._queue.get()
+            try:
+                self._run(job, work)
+            finally:
+                self._queue.task_done()
 
     def _run(self, job: Job, work: Callable[..., Any]) -> None:
         cancel_event = self._cancels[job.id]
-
-        # Wait for a slot, but honour a cancel issued while still queued.
-        while not self._semaphore.acquire(timeout=0.2):
-            if cancel_event.is_set():
-                job.status = "cancelled"
-                job.message = "Cancelled before starting"
-                job.finished_at = time.time()
-                self._emit(job)
-                return
 
         try:
             if cancel_event.is_set():
@@ -209,7 +224,6 @@ class JobQueue:
             job.message = "Failed"
         finally:
             job.finished_at = time.time()
-            self._semaphore.release()
             self._emit(job)
 
     # -- control ---------------------------------------------------------

@@ -31,6 +31,8 @@ __all__ = ["HEIC_EXTENSIONS", "heic_supported", "photo_info", "make_upright", "c
            "level", "gps_scale", "apply_transform", "sparse_colours", "write_cloud", "read_cloud"]
 
 HEIC_EXTENSIONS = {".heic", ".heif", ".hif"}
+# Files a camera or phone writes, which may be stored on their side.
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"} | HEIC_EXTENSIONS
 ORIENTATION_TAG = 0x0112
 # Without a focal length on record, a phone's main camera is close to 26 mm
 # equivalent; the reconstruction then refines it freely.
@@ -57,6 +59,11 @@ def _register_heic() -> None:
 
 def _is_heic(path: str) -> bool:
     return Path(path).suffix.lower() in HEIC_EXTENSIONS
+
+
+def is_photo(path: str) -> bool:
+    """A camera's or phone's photo, as opposed to a scan or an image product."""
+    return Path(path).suffix.lower() in PHOTO_EXTENSIONS
 
 
 def photo_info(path: str) -> dict:

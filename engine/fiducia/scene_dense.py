@@ -54,8 +54,10 @@ class DenseOptions:
     max_angle_deg: float = 40.0      # above this the photos look too different to match
     best_angle_deg: float = 15.0
     min_sideways: float = 0.5        # sine of the angle between the baseline and each view
+    epipole_margin: float = 0.3      # the other camera must appear this far outside a photo, as a share of it
+    spares: int = 4                  # extra partners to try when pairs cannot be matched
     max_disparities: int = 320       # a wider search is made at a reduced size...
-    min_reduction: float = 0.3       # ... down to this, below which the pair is left out
+    min_reduction: float = 0.2       # ... down to this, below which the pair is left out
     block: int = 5                   # matching window, pixels
     tolerance: float = 0.012         # depths agree within this share of the distance
     stride: int = 2                  # every n-th pixel each way becomes a point
@@ -158,6 +160,10 @@ def choose_partners(photos: dict, points: np.ndarray, seen: dict, options: Dense
             sideways = min(np.linalg.norm(np.cross(unit, a.axis)), np.linalg.norm(np.cross(unit, b.axis)))
             if sideways < options.min_sideways:
                 continue
+            # Where each camera appears in the other's photo (the epipole):
+            # in or near the picture, the pair cannot be rectified for matching.
+            if _epipole_inside(a, b, options.epipole_margin) or _epipole_inside(b, a, options.epipole_margin):
+                continue
             sample = points[list(shared)[:200]]
             ra = a.centre - sample
             rb = b.centre - sample
@@ -168,9 +174,20 @@ def choose_partners(photos: dict, points: np.ndarray, seen: dict, options: Dense
             score = len(shared) * math.exp(-((angle - options.best_angle_deg) / options.best_angle_deg) ** 2)
             scored.append((score, j))
         scored.sort(reverse=True)
-        # A few spares, for pairs that cannot be matched.
-        partners[i] = [j for _, j in scored[:options.partners + 2]]
+        # Spares, for pairs that cannot be matched.
+        partners[i] = [j for _, j in scored[:options.partners + options.spares]]
     return partners
+
+
+def _epipole_inside(a: _Photo, b: _Photo, margin: float) -> bool:
+    """Whether camera b appears in, or near, photo a."""
+    cam = a.R @ b.centre + a.t
+    if abs(cam[2]) < 1e-9 * max(np.linalg.norm(cam), 1e-12):
+        return False                           # in the photo's plane: at infinity, far outside
+    f, cx, cy = a.K[0, 0], a.K[0, 2], a.K[1, 2]
+    u, v = f * cam[0] / cam[2] + cx, f * cam[1] / cam[2] + cy
+    width, height = a.size
+    return (-margin * width <= u <= (1 + margin) * width) and (-margin * height <= v <= (1 + margin) * height)
 
 
 def _pair_depth(a: _Photo, b: _Photo, images: _Images, points: np.ndarray, shared: list,
@@ -228,6 +245,11 @@ def _pair_depth(a: _Photo, b: _Photo, images: _Images, points: np.ndarray, share
         rect_b = cv2.resize(rect_b, small, interpolation=cv2.INTER_AREA)
         inside = cv2.resize(inside, small, interpolation=cv2.INTER_NEAREST)
     block = options.block
+    # The matcher needs its search to fit inside the photo: asked for more,
+    # it sizes its buffers negative, and may write outside them.
+    across = rect_a.shape[1]
+    if min_disp + count >= across - block or min_disp <= -(across - block):
+        return None, "the search is wider than the photo"
     matcher = cv2.StereoSGBM_create(
         minDisparity=min_disp, numDisparities=count, blockSize=block,
         P1=8 * 3 * block * block, P2=32 * 3 * block * block, disp12MaxDiff=1,

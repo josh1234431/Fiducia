@@ -817,7 +817,11 @@ def _ground_sampler(path: str, options: "HeightOptions", bounds: tuple):
 
         from . import raster
 
-        dataset = raster.open_raster(options.dtm_path)
+        # A handle of its own: held for the whole run, it must not be one the
+        # viewer's handles could be closed under.
+        import rasterio
+
+        dataset = rasterio.open(options.dtm_path)
         inverse = ~dataset.transform
 
         def sample(xs, ys):
@@ -1211,8 +1215,10 @@ def compare_to_reference(
     """
     from . import raster
 
-    derived = raster.open_raster(derived_path)
-    reference = raster.open_raster(reference_path)
+    import rasterio
+
+    derived = rasterio.open(derived_path)
+    reference = rasterio.open(reference_path)
 
     # The two surfaces may be in different systems. Everything is done in the
     # derived surface's, and the reference is read where each point really is.

@@ -48,6 +48,94 @@ _dataset_lock = threading.Lock()
 _open_datasets: dict[tuple[str, int], rasterio.DatasetReader] = {}
 
 
+class _FileLock:
+    """Many readers, or one writer, for one file.
+
+    Each thread reads through its own handle, but closing a file to rewrite
+    it, or building its overviews, used to close every thread's handle,
+    including one mid-read in the viewer: GDAL then aborted the whole engine.
+    Now reads hold the file shared and a rewrite waits for them, holding it
+    alone. A thread may read again while it reads (a tile reads statistics);
+    a waiting writer keeps new readers out, so it cannot be starved.
+    """
+
+    def __init__(self):
+        self._cond = threading.Condition()
+        self._readers: dict[int, int] = {}
+        self._writer: Optional[int] = None
+        self._waiting = 0
+
+    def acquire_read(self) -> None:
+        me = threading.get_ident()
+        with self._cond:
+            if self._readers.get(me) or self._writer == me:
+                self._readers[me] = self._readers.get(me, 0) + 1
+                return
+            while self._writer is not None or self._waiting:
+                self._cond.wait()
+            self._readers[me] = 1
+
+    def release_read(self) -> None:
+        me = threading.get_ident()
+        with self._cond:
+            count = self._readers.get(me, 0) - 1
+            if count > 0:
+                self._readers[me] = count
+            else:
+                self._readers.pop(me, None)
+                self._cond.notify_all()
+
+    def acquire_write(self) -> None:
+        me = threading.get_ident()
+        with self._cond:
+            if self._writer == me:
+                return
+            self._waiting += 1
+            # A writer that is itself reading waits only for the others.
+            while self._writer is not None or any(t != me for t in self._readers):
+                self._cond.wait()
+            self._waiting -= 1
+            self._writer = me
+
+    def release_write(self) -> None:
+        with self._cond:
+            self._writer = None
+            self._cond.notify_all()
+
+
+_file_locks: dict[str, _FileLock] = {}
+
+
+def _lock_for(path: str | Path) -> _FileLock:
+    key = str(Path(path).resolve()).lower()
+    with _dataset_lock:
+        lock = _file_locks.get(key)
+        if lock is None:
+            lock = _file_locks[key] = _FileLock()
+        return lock
+
+
+def _reads(argument: str = "path"):
+    """Hold the named file shared for the whole call."""
+    import functools
+    import inspect
+
+    def wrap(function):
+        position = list(inspect.signature(function).parameters).index(argument)
+
+        @functools.wraps(function)
+        def run(*args, **kwargs):
+            target = kwargs[argument] if argument in kwargs else args[position]
+            lock = _lock_for(target)
+            lock.acquire_read()
+            try:
+                return function(*args, **kwargs)
+            finally:
+                lock.release_read()
+        return run
+    return wrap
+
+
 def open_raster(path: str | Path) -> rasterio.DatasetReader:
     """Open (and cache) a dataset handle for the calling thread.
 
@@ -69,7 +157,17 @@ def open_raster(path: str | Path) -> rasterio.DatasetReader:
 
 
 def close_raster(path: str | Path) -> None:
-    """Close every thread's handle on this file, e.g. before it is rewritten."""
+    """Close every thread's handle on this file, e.g. before it is rewritten,
+    once no thread is reading it."""
+    lock = _lock_for(path)
+    lock.acquire_write()
+    try:
+        _close_handles(path)
+    finally:
+        lock.release_write()
+
+
+def _close_handles(path: str | Path) -> None:
     resolved = str(Path(path).resolve())
     with _dataset_lock:
         keys = [key for key in _open_datasets if key[0] == resolved]
@@ -126,6 +224,7 @@ class RasterInfo:
         }
 
 
+@_reads()
 def raster_info(path: str | Path) -> RasterInfo:
     dataset = open_raster(path)
     try:
@@ -166,10 +265,30 @@ def build_overviews(path: str | Path, levels: Sequence[int] = (2, 4, 8, 16, 32))
     modified in a way that could lose data.
     """
     target = str(Path(path).resolve())
+    # Alone with the file: nothing reads it while its overviews are written.
+    lock = _lock_for(target)
+    lock.acquire_write()
+    try:
+        return _build_overviews(target, levels)
+    finally:
+        lock.release_write()
+
+
+def _build_overviews(target: str, levels: Sequence[int]) -> list[int]:
+    # A file that already has them needs nothing written: a JPEG photo is
+    # read at a half, a quarter or an eighth of its size straight from the
+    # file, so nothing is ever written beside the operator's photos.
+    try:
+        with rasterio.open(target) as dataset:
+            existing = dataset.overviews(1)
+        if existing:
+            return list(existing)
+    except Exception:
+        pass
 
     # A cached read handle blocks opening the same file for update on Windows,
     # and this is routinely called right after raster_info() has opened one.
-    close_raster(target)
+    _close_handles(target)
 
     try:
         with rasterio.open(target, "r+") as dataset:
@@ -189,7 +308,7 @@ def build_overviews(path: str | Path, levels: Sequence[int] = (2, 4, 8, 16, 32))
     # Read-only source, or a format that cannot carry internal overviews:
     # write an external .ovr sidecar instead. The original file is never
     # modified in a way that could lose data.
-    close_raster(target)
+    _close_handles(target)
     try:
         with rasterio.Env(TIFF_USE_OVR=True):
             with rasterio.open(target, "r") as dataset:
@@ -249,6 +368,7 @@ def _band_statistics(path: str, band: int, sample_limit: int = 2_000_000) -> tup
 _stats_cache: dict[tuple, tuple] = {}
 
 
+@_reads()
 def _compute_band_statistics(path: str, band: int, sample_limit: int) -> tuple:
     dataset = open_raster(path)
     total = dataset.width * dataset.height
@@ -313,6 +433,7 @@ def _stretch(data: np.ndarray, mode: str, stats: tuple, gamma: float = 1.0) -> n
     return np.clip(scaled * 255.0, 0, 255).astype(np.uint8)
 
 
+@_reads()
 def read_window(
     path: str | Path,
     col_off: int,
@@ -337,6 +458,7 @@ def read_window(
     )
 
 
+@_reads()
 def render_tile(
     path: str | Path,
     zoom: int,
@@ -462,6 +584,7 @@ def _apply_colormap(band: np.ndarray, name: str) -> np.ndarray:
     return _colormap_lut(name)[band]
 
 
+@_reads("dem_path")
 def sample_elevation(
     dem_path: str | Path,
     xs: Iterable[float],
@@ -530,12 +653,14 @@ def sample_elevation(
     return out
 
 
+@_reads()
 def pixel_to_map(path: str | Path, cols, rows):
     dataset = open_raster(path)
     xs, ys = dataset.transform * (np.asarray(cols, float) + 0.5, np.asarray(rows, float) + 0.5)
     return np.asarray(xs), np.asarray(ys)
 
 
+@_reads()
 def map_to_pixel(path: str | Path, xs, ys):
     dataset = open_raster(path)
     cols, rows = (~dataset.transform) * (np.asarray(xs, float), np.asarray(ys, float))

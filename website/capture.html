@@ -378,13 +378,17 @@ function analyse(source, w, h) {
     lap += l * l; n++;
   }
   // Column and row profiles of edges: how the picture slides from one photo to the next.
-  var cols = new Float32Array(W), rows = new Float32Array(H);
+  // And how much of the frame has clear edges at all: a plain wall has
+  // nothing to match, and the photos of it are left out of the model.
+  var cols = new Float32Array(W), rows = new Float32Array(H), edged = 0;
   for (y = 1; y < H - 1; y++) for (x = 1; x < W - 1; x++) {
     k = y * W + x;
     var e = Math.abs(g[k + 1] - g[k - 1]) + Math.abs(g[k + W] - g[k - W]);
     cols[x] += e; rows[y] += e;
+    if (Math.abs(g[k + 1] - g[k]) + Math.abs(g[k + W] - g[k]) > 12) edged++;
   }
-  return { sharp: lap / Math.max(n, 1), light: sum / (W * H), cols: normal(cols), rows: normal(rows) };
+  return { sharp: lap / Math.max(n, 1), light: sum / (W * H), detail: edged / Math.max(n, 1),
+    cols: normal(cols), rows: normal(rows) };
 }
 function normal(a) {
   var m = 0, s = 0, i;
@@ -464,6 +468,9 @@ async function shoot() {
       flags.push('blurred'); hints.push('Blurred: hold still as you press, and take it again.');
     }
     if (look.light < 45) { flags.push('dark'); hints.push('Too dark: find more light, or turn the lights on.'); }
+    else if (look.detail < 0.1) {
+      flags.push('plain'); hints.push('Little detail here: a plain wall or ceiling cannot be matched. Include a corner, an edge or things in the room.');
+    }
     var shared = null;
     if (previous && lastSig) {
       var o = overlap(lastSig, look);
@@ -589,6 +596,7 @@ function review() {
   var count = function (f) { return shots.filter(function (s) { return s.flags.indexOf(f) >= 0; }).length; };
   if (count('blurred')) problems.push(count('blurred') + ' blurred: delete them, or take them again.');
   if (count('dark')) problems.push(count('dark') + ' too dark.');
+  if (count('plain')) problems.push(count('plain') + ' of plain surfaces with little to match: these are often left out of the model.');
   if (count('gap')) problems.push(count('gap') + ' too far from the photo before: add photos in between.');
   if (count('spun')) problems.push(count('spun') + ' taken after turning on the spot: these add little depth.');
   if (count('same')) problems.push(count('same') + ' the same view as the one before.');

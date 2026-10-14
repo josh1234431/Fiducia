@@ -493,7 +493,9 @@ def images_add(payload: dict = Body(...)) -> dict:
 
     upright: dict = {}
     phone: dict = {}
-    if project.state.get("workflow") == "scene" or any(scene._is_heic(p) for p in paths):
+    # Whatever kind of project: photos are often added before it is set to
+    # photos without GPS, and an upright photo is left exactly as it is.
+    if any(scene.is_photo(p) for p in paths):
         heic = [Path(p).name for p in paths if scene._is_heic(p)]
         if heic and not scene.heic_supported():
             raise HTTPException(400, f"{len(heic)} HEIC photo{'s' if len(heic) != 1 else ''} "
@@ -502,6 +504,8 @@ def images_add(payload: dict = Body(...)) -> dict:
         folder = Path(project.directory) / "photos"
         for raw in paths:
             source = str(Path(raw).resolve())
+            if not scene.is_photo(source):
+                continue
             try:
                 phone[source] = scene.photo_info(source)
                 upright[source] = scene.make_upright(source, str(folder))
@@ -533,14 +537,22 @@ def images_add(payload: dict = Body(...)) -> dict:
     project.mutate("images_add", apply)
 
     # Overviews make the viewer instant; build them in the background so the
-    # operator can start work on the first image immediately.
-    for image in added:
-        jobs.submit(
-            "overviews",
-            f"Building overviews — {image['name']}",
-            lambda progress, cancel, path=image["path"]: raster.build_overviews(path),
-            meta={"imageId": image["id"]},
-        )
+    # operator can start work on the first image immediately. One job for the
+    # batch, however many photos: a thousand jobs would bury the job bar.
+    if added:
+        batch = [(image["id"], image["path"]) for image in added]
+
+        def overviews(progress, cancel):
+            for n, (_, path) in enumerate(batch):
+                if cancel():
+                    raise InterruptedError("Cancelled")
+                raster.build_overviews(path)
+                progress((n + 1) / len(batch), f"{n + 1} of {len(batch)} images ready to view")
+            return {"images": len(batch)}
+
+        label = (f"Building overviews — {added[0]['name']}" if len(added) == 1
+                 else f"Building overviews — {len(added)} images")
+        jobs.submit("overviews", label, overviews, meta={"imageIds": [i for i, _ in batch]})
 
     return clean({"added": added, "state": project.state})
 
@@ -4115,6 +4127,27 @@ def _scene_folder(project) -> Path:
     return folder
 
 
+def _scene_save(folder: Path, stem: str, compressed: bool = False, **arrays) -> Path:
+    """Arrays saved under a new name each time. On Windows a file cannot be
+    replaced while it is being read, and the 3D view reads these while a new
+    one is built; the old file is removed once nothing points to it."""
+    path = folder / f"{stem}-{time.strftime('%Y%m%d-%H%M%S')}-{time.perf_counter_ns() % 1000000:06d}.npz"
+    partial = path.with_name(path.stem + ".part.npz")
+    (np.savez_compressed if compressed else np.savez)(partial, **arrays)
+    partial.replace(path)
+    return path
+
+
+def _scene_tidy(folder: Path, stem: str, keep: Path) -> None:
+    """Earlier saves of these arrays, removed where nothing is reading them."""
+    for old in folder.glob(f"{stem}*.npz"):
+        if old.resolve() != Path(keep).resolve():
+            try:
+                old.unlink()
+            except OSError:
+                pass                         # still open: removed next time
+
+
 def _scene_or_404(project) -> dict:
     scene_state = project.state.get("scene")
     if not scene_state or not scene_state.get("sparsePath"):
@@ -4175,6 +4208,35 @@ def scene_align(payload: dict = Body(default={})) -> dict:
 
     def work(progress, should_cancel):
         progress(0.0, "Reading the photos")
+        # Photos added before an earlier version made them upright, or while
+        # the project was set to another kind of data, are still on their
+        # side: stood upright now, as copies, before anything is matched.
+        repaired = {}
+        for image in images:
+            if image.get("sourcePath") or not scene.is_photo(image["path"]):
+                continue
+            try:
+                info = scene.photo_info(image["path"])
+            except Exception:  # noqa: BLE001 -- an unreadable tag leaves the photo as it is
+                continue
+            if info["orientation"] != 1:
+                upright = scene.make_upright(image["path"], str(Path(project.directory) / "photos"))
+                repaired[image["id"]] = (upright, info)
+                progress(0.01, f"Stood {len(repaired)} photos upright")
+        if repaired:
+            def fix(state: dict) -> None:
+                for entry in state["images"]:
+                    if entry["id"] in repaired:
+                        upright, info = repaired[entry["id"]]
+                        entry["sourcePath"] = entry["path"]
+                        entry["path"] = upright
+                        entry["storedPath"] = project.store_path(upright)
+                        entry["phone"] = info
+                        _refresh_image_metadata(project, entry)
+
+            project.mutate("scene_upright", fix)
+            current = {i["id"]: i for i in project.state["images"]}
+            images[:] = [dict(current[i["id"]]) for i in images]
         infos = []
         for image in images:
             info = dict(image.get("phone") or scene.photo_info(image.get("sourcePath") or image["path"]))
@@ -4202,12 +4264,9 @@ def scene_align(payload: dict = Body(default={})) -> dict:
 
         obs = [(n, i, c, r) for n, track in enumerate(result["observations"]) for i, c, r in track]
         arr = np.array(obs, float).reshape(-1, 4)
-        sparse_path = folder / "sparse.npz"
-        partial = folder / "sparse.part.npz"
-        np.savez_compressed(partial, points=points, colours=colours,
-                            obsPoint=arr[:, 0].astype(np.int32), obsPhoto=arr[:, 1].astype(np.int32),
-                            obsPixel=arr[:, 2:].astype(np.float32))
-        partial.replace(sparse_path)
+        sparse_path = _scene_save(folder, "sparse", compressed=True, points=points, colours=colours,
+                                  obsPoint=arr[:, 0].astype(np.int32), obsPhoto=arr[:, 1].astype(np.int32),
+                                  obsPixel=arr[:, 2:].astype(np.float32))
 
         cameras = []
         for g, (group, lens) in enumerate(zip(groups, result["lenses"])):
@@ -4241,6 +4300,7 @@ def scene_align(payload: dict = Body(default={})) -> dict:
             state["scene"] = record
 
         project.mutate("scene_align", apply)
+        _scene_tidy(folder, "sparse", sparse_path)
         broadcast({"type": "project.changed", "operation": "scene_align"})
         return {k: record[k] for k in ("placed", "photos", "points", "reprojectionRmsPx", "unplaced")} | \
             {"scaleSource": transform["scaleSource"]}
@@ -4436,11 +4496,8 @@ def scene_mesh_build(payload: dict = Body(default={})) -> dict:
             scene_mesh.MeshOptions(detail=detail),
             progress=lambda f, m: progress(0.97 * f, m), should_cancel=should_cancel)
         folder = _scene_folder(project)
-        path = folder / "mesh.npz"
-        partial = folder / "mesh.part.npz"
-        np.savez(partial, vertices=result["vertices"], faces=result["faces"].astype(np.int32),
-                 colours=result["colours"])
-        partial.replace(path)
+        path = _scene_save(folder, "mesh", vertices=result["vertices"], faces=result["faces"].astype(np.int32),
+                           colours=result["colours"])
         info = {**result["summary"], "path": project.store_path(path),
                 "builtAt": time.strftime("%Y-%m-%d %H:%M:%S")}
 
@@ -4448,6 +4505,7 @@ def scene_mesh_build(payload: dict = Body(default={})) -> dict:
             state["scene"]["mesh"] = info
 
         project.mutate("scene_mesh", apply)
+        _scene_tidy(folder, "mesh", path)
         broadcast({"type": "project.changed", "operation": "scene_mesh"})
         return {"triangles": info["triangles"], "vertices": info["vertices"]}
 
@@ -4565,10 +4623,7 @@ def scene_dense(payload: dict = Body(default={})) -> dict:
 
         progress(0.96, "Saving the cloud")
         folder = _scene_folder(project)
-        path = folder / "dense.npz"
-        partial = folder / "dense.part.npz"
-        np.savez(partial, points=result["points"], colours=result["colours"])
-        partial.replace(path)
+        path = _scene_save(folder, "dense", points=result["points"], colours=result["colours"])
         info = {**result["summary"], "path": project.store_path(path), "builtAt": time.strftime("%Y-%m-%d %H:%M:%S"),
                 # Each photo's checked depths, kept to build a mesh from.
                 "depthMaps": {str(i): Path(p).name for i, p in result["depthMaps"].items()},
@@ -4578,6 +4633,7 @@ def scene_dense(payload: dict = Body(default={})) -> dict:
             state["scene"]["dense"] = info
 
         project.mutate("scene_dense", apply)
+        _scene_tidy(folder, "dense", path)
         written = _scene_write_dense_laz(project, project.state["scene"])
 
         def record(state: dict) -> None:
