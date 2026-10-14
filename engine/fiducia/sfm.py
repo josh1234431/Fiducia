@@ -51,6 +51,7 @@ class SfmOptions:
     exhaustive_up_to: int = 60       # photos; above this, each is matched with a shortlist
     shortlist: int = 15              # likely neighbours per photo in a large set
     max_reprojection_px: float = 4.0 # observations further off than this are dropped, in the end
+    huber_px: float = 2.0            # errors beyond this weigh less in the adjustment
     first_reprojection: float = 0.04     # ... and at first, before the lens is known, as a
                                          # share of the photo's diagonal (a wide lens bends
                                          # its corners by that much)
@@ -440,7 +441,7 @@ class _Model:
         o_g = self.camera_of[o_i]
         o_cx, o_cy = self.pp[o_i, 0], self.pp[o_i, 1]
         o_px = np.array([[c, r] for _, _, c, r in obs])
-        huber = 2.0
+        huber = self.options.huber_px
         target = np.linalg.norm(-R[slot[a]].T @ T[slot[a]] + R[slot[b]].T @ T[slot[b]])
         scale_weight = 1e3
         priors = [c for c in range(G) if n_lens and held[c] is None and self.known[c]
@@ -707,12 +708,14 @@ class _Model:
         return (float(np.sqrt(np.mean(errors ** 2))) if errors.size else 0.0), int(errors.size)
 
 
-def _starting_pair(pair_matches: dict, model: _Model, options: SfmOptions):
-    """The pair to start from: many matches, a real baseline, depth to triangulate."""
+def _starting_pair(pair_matches: dict, model: _Model, options: SfmOptions, among: Optional[set] = None):
+    """The pair to start from: many matches, a real baseline, depth to triangulate;
+    both photos from ``among`` when it is given."""
     import cv2
 
     best = None
-    for (i, j), (pa, pb) in sorted(pair_matches.items(), key=lambda kv: -len(kv[1][0]))[:30]:
+    candidates = [kv for kv in pair_matches.items() if among is None or (kv[0][0] in among and kv[0][1] in among)]
+    for (i, j), (pa, pb) in sorted(candidates, key=lambda kv: -len(kv[1][0]))[:30]:
         if len(pa) < 50:
             continue
         # A pair explained as well by a homography is a pure rotation or a flat
@@ -767,17 +770,52 @@ def reconstruct(
     """
     import copy
 
-    options = options or SfmOptions()
+    options = copy.copy(options or SfmOptions())
     say = progress or (lambda fraction, message: None)
     cancelled = should_cancel or (lambda: False)
     n = len(sizes)
     focals = [float(f) for f in np.atleast_1d(focal_px)]
     camera_of = list(camera_of) if camera_of is not None else [0] * n
     known = list(focal_known) if focal_known is not None else [options.focal_known] * len(focals)
+    # Features are found on photos reduced to the matching size, so a match is
+    # only as exact as a pixel there: a 50-megapixel photo is reduced three
+    # times over, and its pixel tolerances widen with it.
+    reduction = max(1.0, max(max(w, h) for w, h in sizes) / options.matching.working_max_px)
+    options.max_reprojection_px *= reduction
+    options.huber_px *= reduction
+
+    def attempt(among, first, share):
+        return _grow(sizes, tracks, pair_matches, focals, camera_of, known, options, among,
+                     lambda f, m: say(first + share * f, m), cancelled)
+
+    best = attempt(None, 0.0, 1.0)
+    # A start on one side of a weak link can fail to grow across it while a
+    # start on the other side succeeds. If photos are left, start again among
+    # them, and keep whichever places more.
+    left = set(best["unplaced"])
+    if left and any(i in left and j in left for i, j in pair_matches):
+        say(0.5, f"{len(left)} photos left: starting again among them")
+        try:
+            other = attempt(left, 0.5, 0.5)
+        except ValueError:
+            other = None
+        if other and (other["summary"]["placed"], -other["summary"]["reprojectionRmsPx"]) > \
+                (best["summary"]["placed"], -best["summary"]["reprojectionRmsPx"]):
+            best = other
+    s = best["summary"]
+    say(1.0, f"{s['placed']} of {n} photos placed, {s['points']:,} points")
+    return best
+
+
+def _grow(sizes, tracks, pair_matches, focals, camera_of, known, options, among, say, cancelled) -> dict:
+    """One reconstruction, from the best starting pair (among the photos given, if any)."""
+    import copy
+
+    n = len(sizes)
     cameras = [Intrinsics(focal=f, cx=0.0, cy=0.0) for f in focals]
     model = _Model(tracks, cameras, camera_of, sizes, known, options)
 
-    start = _starting_pair(pair_matches, model, options)
+    start = _starting_pair(pair_matches, model, options, among)
     if start is None:
         raise ValueError("No pair of photos overlaps enough, from far enough apart, to start from.")
     _, a, b, R, t = start
@@ -842,7 +880,6 @@ def reconstruct(
     track_ids = sorted(model.points)
     lengths = [len([1 for i, _, _ in model.observations(t) if i in model.poses]) for t in track_ids]
     placed_of = np.bincount(np.asarray(camera_of)[sorted(model.poses)], minlength=len(cameras))
-    say(1.0, f"{len(model.poses)} of {n} photos placed, {len(track_ids):,} points")
     first = model.k(min(model.poses))
     return {
         "poses": {i: {"rvec": model.poses[i][0].tolist(), "t": model.poses[i][1].tolist(),

@@ -4619,7 +4619,37 @@ def jobs_clear() -> dict:
 # -- entry point -----------------------------------------------------------
 
 
+_crash_log = None
+
+
+def _log_crashes() -> None:
+    """Keep a record of crashes inside native code (OpenCV, numpy, GDAL).
+
+    Python's own errors reach the job that raised them, but a crash in
+    compiled code ends the process at once and says nothing. With the
+    fault handler on, the stack of every thread is written to a log in the
+    user's local app data first, so the cause can be found afterwards.
+    """
+    global _crash_log
+    import faulthandler
+
+    try:
+        folder = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "Fiducia" / "logs"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / "engine-crash.log"
+        # Kept short: the latest crashes are the ones that matter.
+        if path.exists() and path.stat().st_size > 1_000_000:
+            path.replace(folder / "engine-crash.old.log")
+        _crash_log = open(path, "a", encoding="utf-8")
+        _crash_log.write(f"\n--- engine {VERSION} started {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        _crash_log.flush()
+        faulthandler.enable(file=_crash_log, all_threads=True)
+    except OSError:
+        faulthandler.enable()
+
+
 def main() -> None:
+    _log_crashes()
     parser = argparse.ArgumentParser(description="Fiducia engine")
     parser.add_argument("--port", type=int, default=8731)
     parser.add_argument("--host", default="127.0.0.1")
