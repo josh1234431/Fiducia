@@ -64,7 +64,7 @@ from fiducia.collinearity import project_points
 from fiducia import plausibility
 from fiducia import corrections
 
-VERSION = "0.3.3"
+VERSION = "0.4.0"
 
 jobs = JobQueue(max_concurrent=3)
 _current: Optional[Project] = None
