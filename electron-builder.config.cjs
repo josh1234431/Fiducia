@@ -18,6 +18,9 @@ module.exports = {
     buildResources: 'resources',
   },
   files: ['dist/**', 'electron/**', 'resources/icon.png', 'package.json', 'LICENSE', 'NOTICE'],
+  // The Electron already installed for development, the same version as
+  // package.json pins, so packaging needs no download.
+  electronDist: path.join(__dirname, 'node_modules', 'electron', 'dist'),
   // The frozen engine sits beside the app, not inside its archive, so
   // Windows can run it and its worker processes directly.
   extraResources: [{ from: path.join(build, 'engine', 'fiducia-engine'), to: 'engine' }],
